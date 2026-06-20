@@ -4,12 +4,16 @@ Application entry point using the application factory pattern.
 """
 import markdown
 
-from flask import Flask
+from flask import Flask, session
+from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 
 from config import get_config
 from models import db
 from routes import register_blueprints
+
+# CSRF 保护
+csrf = CSRFProtect()
 
 
 # 创建 Flask-Migrate 实例
@@ -34,8 +38,15 @@ def create_app(config_object=None) -> Flask:
     # 2. 初始化扩展
     db.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
 
-    # 3. 注册自定义 Jinja2 过滤器
+    # 3. 全局上下文处理器 - 提供 csrf_token 到所有模板
+    @app.context_processor
+    def inject_csrf_token():
+        from flask_wtf.csrf import generate_csrf
+        return dict(csrf_token=generate_csrf)
+
+    # 4. 注册自定义 Jinja2 过滤器
     @app.template_filter('markdown')
     def render_markdown(text):
         """将 Markdown 文本转换为 HTML"""
@@ -44,10 +55,10 @@ def create_app(config_object=None) -> Flask:
             extensions=['fenced_code', 'tables', 'toc']
         )
 
-    # 4. 注册蓝图
+    # 5. 注册蓝图
     register_blueprints(app)
 
-    # 5. 首次运行时自动建表（生产环境建议使用 Flask-Migrate 管理迁移）
+    # 6. 首次运行时自动建表（生产环境建议使用 Flask-Migrate 管理迁移）
     with app.app_context():
         db.create_all()
 
