@@ -38,5 +38,8 @@ backup/
 # Migration scripts
 migrate_db.py
 
+# Uploads
+uploads/
+
 # Minimax agent files (exclude from git)
 .minimax/
