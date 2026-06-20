@@ -314,3 +314,28 @@ def delete(post_id):
 @blog_bp.app_errorhandler(404)
 def page_not_found(error):  # noqa: ARG001
     return render_template('404.html', error=error), 404
+
+
+# ----------------------------- JSON API -----------------------------
+
+@blog_bp.route('/api/tag', methods=['POST'])
+def api_delete_tag():
+    """POST /api/tag - 删除标签（按名称）"""
+    from flask import jsonify
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+
+    if not name:
+        return jsonify({'error': '标签名称不能为空'}), 400
+
+    tag = Tag.query.filter_by(name=name).first()
+    if not tag:
+        return jsonify({'error': '标签不存在'}), 404
+
+    try:
+        db.session.delete(tag)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'删除失败: {exc}'}), 500

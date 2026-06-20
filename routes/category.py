@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 
 from flask import (
-    Blueprint, render_template, request, redirect, url_for, flash, abort
+    Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 )
 
 from models import db, Category, Tag, Post
@@ -339,3 +339,80 @@ def api_categories():
             } for c in categories
         ]
     }
+
+
+# --------------------------------------------------------------------------
+# JSON API - 分类 CRUD
+# --------------------------------------------------------------------------
+@category_bp.route('/api/category', methods=['POST'])
+def api_create():
+    """POST /api/category - 新建分类（JSON）"""
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    description = (data.get('description') or '').strip()
+
+    if not name:
+        return jsonify({'error': '分类名称不能为空'}), 400
+    if len(name) > 50:
+        return jsonify({'error': '分类名称长度不能超过 50 字符'}), 400
+    if Category.query.filter_by(name=name).first():
+        return jsonify({'error': f'分类 "{name}" 已存在'}), 400
+
+    try:
+        category = Category(
+            name=name,
+            slug=_generate_unique_slug(name, Category),
+            description=description or None,
+        )
+        db.session.add(category)
+        db.session.commit()
+        return jsonify({'id': category.id, 'name': category.name, 'slug': category.slug, 'description': category.description})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'创建失败: {exc}'}), 500
+
+
+@category_bp.route('/api/category/<int:cat_id>', methods=['PUT'])
+def api_update(cat_id):
+    """PUT /api/category/<id> - 更新分类（JSON）"""
+    category = Category.query.get_or_404(cat_id)
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    description = (data.get('description') or '').strip()
+
+    if not name:
+        return jsonify({'error': '分类名称不能为空'}), 400
+    if len(name) > 50:
+        return jsonify({'error': '分类名称长度不能超过 50 字符'}), 400
+
+    exists = Category.query.filter(Category.name == name, Category.id != category.id).first()
+    if exists:
+        return jsonify({'error': f'分类 "{name}" 已存在'}), 400
+
+    try:
+        category.name = name
+        category.description = description or None
+        if name != category.name or not category.slug:
+            category.slug = _generate_unique_slug(name, Category, exclude_id=category.id)
+        db.session.commit()
+        return jsonify({'success': True, 'name': category.name, 'description': category.description})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'保存失败: {exc}'}), 500
+
+
+@category_bp.route('/api/category/<int:cat_id>', methods=['DELETE'])
+def api_delete(cat_id):
+    """DELETE /api/category/<id> - 删除分类（JSON）"""
+    category = Category.query.get_or_404(cat_id)
+
+    if category.posts.count() > 0:
+        return jsonify({'error': f'该分类仍包含 {category.posts.count()} 篇文章，无法删除'}), 400
+
+    try:
+        db.session.delete(category)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'删除失败: {exc}'}), 500
