@@ -702,7 +702,8 @@ function saveTag() {
     const oldName = document.getElementById('editTagOldName').value;
     const newName = document.getElementById('editTagName').value.trim();
     if (!newName) { alert('请输入标签名称'); return; }
-    fetch('{{ url_for("category.api_update_tag", name="") }}'.replace(/\\/$/, '') + '?old=' + encodeURIComponent(oldName), {
+    const baseUrl = '{{ url_for("category.api_update_tag") }}';
+    fetch(baseUrl + '?old=' + encodeURIComponent(oldName), {
         method: 'PUT',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
         body: JSON.stringify({name: newName})
@@ -713,6 +714,8 @@ function saveTag() {
             if (item) {
                 item.setAttribute('data-tag', newName);
                 item.querySelector('.tag-name').textContent = newName;
+                item.querySelector('.btn-outline-secondary').setAttribute('onclick', "editTag('"+newName+"')");
+                item.querySelector('.btn-outline-danger').setAttribute('onclick', "deleteTag('"+newName+"')");
             }
             // 更新选择区
             document.querySelectorAll('.tag-item[data-tag="'+oldName+'"]').forEach(function(btn) {
