@@ -68,7 +68,7 @@ def detail(slug):
     文章详情页
     """
     post = Post.query.filter_by(slug=slug).first_or_404()
-    return render_template('detail.html', post=post)
+    return render_template('post.html', post=post)
 
 
 @blog_bp.route('/create', methods=['GET', 'POST'])
@@ -173,4 +173,4 @@ def delete(post_id):
 
 @blog_bp.app_errorhandler(404)
 def page_not_found(error):  # noqa: ARG001
-    return render_template('404.html'), 404
+    return render_template('404.html', error=error), 404

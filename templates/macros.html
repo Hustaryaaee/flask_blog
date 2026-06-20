@@ -13,7 +13,7 @@
     <div class="card post-card mb-4 shadow-sm">
         <div class="card-body">
             <h2 class="card-title h4 mb-2">
-                <a href="{{ url_for('post', post_id=post.id) }}"
+                <a href="{{ url_for('blog.detail', slug=post.slug) }}"
                    class="text-decoration-none text-dark stretched-link-inverse">
                     {{ post.title }}
                 </a>
@@ -41,7 +41,7 @@
             </p>
 
             <div class="d-flex justify-content-between align-items-center mt-3">
-                <a href="{{ url_for('post', post_id=post.id) }}"
+                <a href="{{ url_for('blog.detail', slug=post.slug) }}"
                    class="btn btn-sm btn-outline-primary">
                     阅读全文 <i class="bi bi-arrow-right ms-1"></i>
                 </a>
@@ -74,7 +74,7 @@
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
                     {% if pagination.has_prev %}
                         <a class="page-link"
-                           href="{{ url_for(endpoint, page=pagination.prev_num) }}"
+                           href="{{ url_for('blog.' + endpoint, page=pagination.prev_num) }}"
                            aria-label="上一页">
                             <i class="bi bi-chevron-left"></i>
                             <span class="d-none d-sm-inline ms-1">上一页</span>
@@ -97,7 +97,7 @@
                         {% else %}
                             <li class="page-item">
                                 <a class="page-link"
-                                   href="{{ url_for(endpoint, page=page_num) }}">{{ page_num }}</a>
+                                   href="{{ url_for('blog.' + endpoint, page=page_num) }}">{{ page_num }}</a>
                             </li>
                         {% endif %}
                     {% else %}
@@ -111,7 +111,7 @@
                 <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
                     {% if pagination.has_next %}
                         <a class="page-link"
-                           href="{{ url_for(endpoint, page=pagination.next_num) }}"
+                           href="{{ url_for('blog.' + endpoint, page=pagination.next_num) }}"
                            aria-label="下一页">
                             <span class="d-none d-sm-inline me-1">下一页</span>
                             <i class="bi bi-chevron-right"></i>

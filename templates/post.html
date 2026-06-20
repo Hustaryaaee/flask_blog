@@ -12,7 +12,7 @@
         <nav aria-label="breadcrumb" class="mb-3">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item">
-                    <a href="{{ url_for('index') }}" class="text-decoration-none">
+                    <a href="{{ url_for('blog.index') }}" class="text-decoration-none">
                         <i class="bi bi-house-door me-1"></i>首页
                     </a>
                 </li>
@@ -60,13 +60,13 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
 
                     {# 左侧:返回按钮 #}
-                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                    <a href="{{ url_for('blog.index') }}" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-arrow-left me-1"></i>返回列表
                     </a>
 
                     {# 右侧:编辑/删除按钮 #}
                     <div class="btn-group" role="group" aria-label="文章操作">
-                        <a href="{{ url_for('edit', post_id=post.id) }}"
+                        <a href="{{ url_for('blog.edit', post_id=post.id) }}"
                            class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-pencil me-1"></i>编辑
                         </a>
@@ -121,7 +121,7 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="bi bi-x-lg me-1"></i>取消
                 </button>
-                <form id="deleteForm" method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="d-inline">
+                <form id="deleteForm" method="POST" action="{{ url_for('blog.delete', post_id=post.id) }}" class="d-inline">
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash me-1"></i>确认删除
                     </button>
