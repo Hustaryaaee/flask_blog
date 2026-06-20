@@ -131,23 +131,26 @@
                         <input type="hidden" name="tags" id="tagsHidden" value="{{ tags_raw if tags_raw is defined else '' }}">
                     </div>
                     {# 已有标签选择 #}
-                    <div class="border rounded p-2" style="max-height: 120px; overflow-y: auto;">
-                        {% if all_tags and all_tags|length > 0 %}
-                            {% for tag in all_tags %}
-                                <button type="button"
-                                        class="badge tag-item me-1 mb-1 {% if selected_tags is defined and tag.name in selected_tags %}bg-primary text-white{% else %}bg-light text-dark border{% endif %}"
-                                        data-tag="{{ tag.name }}"
-                                        onclick="toggleTag(this)">
-                                    {{ tag.name }}
-                                    <i class="bi bi-x ms-1"></i>
-                                </button>
-                            {% endfor %}
-                        {% else %}
-                            <small class="text-muted">暂无标签</small>
-{% endif %}
+                    <div class="input-group">
+                        <div class="border rounded p-2 flex-grow-1" style="max-height: 120px; overflow-y: auto;" id="tagListContainer">
+                            {% if all_tags and all_tags|length > 0 %}
+                                {% for tag in all_tags %}
+                                    <button type="button"
+                                            class="badge tag-item me-1 mb-1 {% if selected_tags is defined and tag.name in selected_tags %}bg-primary text-white{% else %}bg-light text-dark border{% endif %}"
+                                            data-tag="{{ tag.name }}"
+                                            onclick="toggleTag(this)">
+                                        {{ tag.name }}
+                                    </button>
+                                {% endfor %}
+                            {% else %}
+                                <small class="text-muted">暂无标签</small>
+                            {% endif %}
+                        </div>
+                        <button class="btn btn-outline-info" type="button" data-bs-toggle="modal" data-bs-target="#tagModal" title="管理标签">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
                     </div>
-                    {# 新建标签按钮 #}
-                    <button type="button" class="btn btn-sm btn-outline-info mt-2" onclick="showNewTagInput(this)">
+                </div>
                         <i class="bi bi-plus-lg me-1"></i>新建标签
                     </button>
                 </div>
@@ -520,21 +523,59 @@
     </div>
 </div>
 
-{# 标签删除确认模态框 #}
-<div class="modal fade" id="tagDeleteModal" tabindex="-1">
+{# 标签管理模态框 #}
+<div class="modal fade" id="tagModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-tags me-2 text-info"></i>标签管理</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {# 新建标签 #}
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="newTagName" placeholder="新标签名称">
+                    <button class="btn btn-primary" type="button" onclick="createTag()">
+                        <i class="bi bi-plus-lg"></i>添加
+                    </button>
+                </div>
+                {# 标签列表 #}
+                <div class="list-group" id="tagList" style="max-height: 300px; overflow-y: auto;">
+                    {% for tag in all_tags %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center" data-tag="{{ tag.name }}">
+                        <div class="flex-grow-1">
+                            <span class="tag-name">{{ tag.name }}</span>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary" onclick="editTag('{{ tag.name }}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" onclick="deleteTag('{{ tag.name }}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# 标签编辑模态框 #}
+<div class="modal fade" id="tagEditModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">确认删除</h5>
+                <h5 class="modal-title">编辑标签</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body text-center">
-                <p>确定要删除标签 <strong id="deleteTagName"></strong> 吗?</p>
-                <p class="small text-muted">相关文章中的此标签也会被移除</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteTag">删除</button>
+            <div class="modal-body">
+                <input type="hidden" id="editTagOldName">
+                <div class="mb-2">
+                    <input type="text" class="form-control" id="editTagName" placeholder="标签名称">
+                </div>
+                <button class="btn btn-primary w-100" onclick="saveTag()">保存</button>
             </div>
         </div>
     </div>
@@ -626,26 +667,79 @@ function deleteCategory(id) {
     });
 }
 
-// 标签删除
-let tagToDelete = '';
-function confirmDeleteTag(tag) {
-    tagToDelete = tag;
-    document.getElementById('deleteTagName').textContent = tag;
-    new bootstrap.Modal(document.getElementById('tagDeleteModal')).show();
+// 标签管理函数
+function createTag() {
+    const name = document.getElementById('newTagName').value.trim();
+    if (!name) { alert('请输入标签名称'); return; }
+    fetch('{{ url_for("category.api_create_tag") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({name: name})
+    }).then(r => r.json()).then(data => {
+        if (data.id || data.success) {
+            // 添加到列表
+            const list = document.getElementById('tagList');
+            const tagName = data.name || name;
+            list.insertAdjacentHTML('beforeend', '<div class="list-group-item d-flex justify-content-between align-items-center" data-tag="'+tagName+'"><div class="flex-grow-1"><span class="tag-name">'+tagName+'</span></div><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" onclick="editTag(\''+tagName+'\')"><i class="bi bi-pencil"></i></button><button class="btn btn-outline-danger" onclick="deleteTag(\''+tagName+'\')"><i class="bi bi-trash"></i></button></div></div>');
+            // 添加到选择区
+            const container = document.getElementById('tagListContainer');
+            if (container.querySelector('.text-muted')) container.innerHTML = '';
+            container.insertAdjacentHTML('beforeend', '<button type="button" class="badge tag-item bg-light text-dark border me-1 mb-1" data-tag="'+tagName+'" onclick="toggleTag(this)">'+tagName+'</button>');
+            document.getElementById('newTagName').value = '';
+        } else {
+            alert(data.error || '创建失败');
+        }
+    });
 }
-document.getElementById('confirmDeleteTag').onclick = function() {
+
+function editTag(name) {
+    document.getElementById('editTagOldName').value = name;
+    document.getElementById('editTagName').value = name;
+    new bootstrap.Modal(document.getElementById('tagEditModal')).show();
+}
+
+function saveTag() {
+    const oldName = document.getElementById('editTagOldName').value;
+    const newName = document.getElementById('editTagName').value.trim();
+    if (!newName) { alert('请输入标签名称'); return; }
+    fetch('{{ url_for("category.api_update_tag", name="") }}'.replace(/\\/$/, '') + '?old=' + encodeURIComponent(oldName), {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        body: JSON.stringify({name: newName})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            // 更新列表
+            const item = document.querySelector('.list-group-item[data-tag="'+oldName+'"]');
+            if (item) {
+                item.setAttribute('data-tag', newName);
+                item.querySelector('.tag-name').textContent = newName;
+            }
+            // 更新选择区
+            document.querySelectorAll('.tag-item[data-tag="'+oldName+'"]').forEach(function(btn) {
+                btn.setAttribute('data-tag', newName);
+                btn.textContent = newName;
+            });
+            bootstrap.Modal.getInstance(document.getElementById('tagEditModal')).hide();
+        } else {
+            alert(data.error || '保存失败');
+        }
+    });
+}
+
+function deleteTag(name) {
+    if (!confirm('确定要删除标签 "'+name+'" 吗?')) return;
     fetch('{{ url_for("blog.api_delete_tag") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({name: tagToDelete})
+        body: JSON.stringify({name: name})
     }).then(r => r.json()).then(data => {
         if (data.success) {
-            document.querySelector('.tag-item[data-tag="'+tagToDelete+'"]').remove();
-            bootstrap.Modal.getInstance(document.getElementById('tagDeleteModal')).hide();
+            document.querySelector('.list-group-item[data-tag="'+name+'"]').remove();
+            document.querySelectorAll('.tag-item[data-tag="'+name+'"]').forEach(function(btn) { btn.remove(); });
         } else {
             alert(data.error || '删除失败');
         }
     });
-};
+}
 </script>
 {% endblock %}

@@ -416,3 +416,62 @@ def api_delete(cat_id):
     except Exception as exc:
         db.session.rollback()
         return jsonify({'error': f'删除失败: {exc}'}), 500
+
+
+# --------------------------------------------------------------------------
+# JSON API - 标签 CRUD
+# --------------------------------------------------------------------------
+@category_bp.route('/api/tag', methods=['POST'])
+def api_create_tag():
+    """POST /api/tag - 新建标签（JSON）"""
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+
+    if not name:
+        return jsonify({'error': '标签名称不能为空'}), 400
+    if len(name) > 30:
+        return jsonify({'error': '标签名称长度不能超过 30 字符'}), 400
+    if Tag.query.filter_by(name=name).first():
+        return jsonify({'error': f'标签 "{name}" 已存在'}), 400
+
+    try:
+        tag = Tag(
+            name=name,
+            slug=_generate_unique_slug(name, Tag),
+        )
+        db.session.add(tag)
+        db.session.commit()
+        return jsonify({'id': tag.id, 'name': tag.name, 'slug': tag.slug})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'创建失败: {exc}'}), 500
+
+
+@category_bp.route('/api/tag', methods=['PUT'])
+def api_update_tag():
+    """PUT /api/tag?old=xxx - 更新标签（JSON）"""
+    old_name = (request.args.get('old') or '').strip()
+    data = request.get_json() or {}
+    new_name = (data.get('name') or '').strip()
+
+    if not old_name:
+        return jsonify({'error': '缺少原标签名称'}), 400
+    if not new_name:
+        return jsonify({'error': '标签名称不能为空'}), 400
+    if len(new_name) > 30:
+        return jsonify({'error': '标签名称长度不能超过 30 字符'}), 400
+
+    tag = Tag.query.filter_by(name=old_name).first()
+    if not tag:
+        return jsonify({'error': '标签不存在'}), 404
+    if old_name != new_name and Tag.query.filter_by(name=new_name).first():
+        return jsonify({'error': f'标签 "{new_name}" 已存在'}), 400
+
+    try:
+        tag.name = new_name
+        tag.slug = _generate_unique_slug(new_name, Tag, exclude_id=tag.id)
+        db.session.commit()
+        return jsonify({'success': True, 'name': tag.name})
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({'error': f'保存失败: {exc}'}), 500
