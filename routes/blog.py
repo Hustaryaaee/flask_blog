@@ -8,6 +8,7 @@ from datetime import datetime
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, abort
 )
+from urllib.parse import unquote
 
 from models import db, Post, Category, Tag
 
@@ -201,9 +202,10 @@ def create():
             )
 
     # GET 请求，渲染空表单 - 支持从 URL 参数预填 (来自 upload 等场景)
-    prefill_title = (request.args.get('title') or '').strip()
-    prefill_content = request.args.get('content') or ''
-    prefill_is_markdown = request.args.get('is_markdown') in ('1', 'true')
+    # URL参数需要解码
+    prefill_title = unquote(request.args.get('title', '')).strip()
+    prefill_content = unquote(request.args.get('content', ''))
+    prefill_is_markdown = request.args.get('is_markdown', '') in ('1', 'true')
 
     if prefill_content:
         flash('已从上传文件预填内容,请编辑后发布', 'info')
