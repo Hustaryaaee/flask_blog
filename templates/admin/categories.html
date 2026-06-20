@@ -51,6 +51,7 @@
                         <form method="POST"
                               action="{{ url_for('category.admin_create_category') }}"
                               class="row g-2 align-items-end">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div class="col-md-5">
                                 <label for="cat_name" class="form-label small mb-1">分类名称 <span class="text-danger">*</span></label>
                                 <input type="text"
@@ -125,6 +126,7 @@
                                         <div class="modal-content">
                                             <form method="POST"
                                                   action="{{ url_for('category.admin_edit_category', cat_id=cat.id) }}">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title">
                                                         <i class="bi bi-pencil-square me-2"></i>编辑分类
@@ -167,6 +169,7 @@
                                         <div class="modal-content">
                                             <form method="POST"
                                                   action="{{ url_for('category.admin_delete_category', cat_id=cat.id) }}">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title">
                                                         <i class="bi bi-exclamation-triangle text-warning me-2"></i>确认删除
@@ -223,6 +226,7 @@
                         <form method="POST"
                               action="{{ url_for('category.admin_create_tag') }}"
                               class="row g-2 align-items-end">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div class="col-md-8">
                                 <label for="tag_name" class="form-label small mb-1">
                                     标签名称
@@ -268,6 +272,7 @@
                                             <div class="modal-content">
                                                 <form method="POST"
                                                       action="{{ url_for('category.admin_delete_tag', tag_id=tag.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <div class="modal-header">
                                                         <h5 class="modal-title h6">删除标签</h5>
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
