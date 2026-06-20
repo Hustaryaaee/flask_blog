@@ -2,6 +2,8 @@
 Flask 应用入口 - 使用工厂模式创建应用实例
 Application entry point using the application factory pattern.
 """
+import markdown
+
 from flask import Flask
 from flask_migrate import Migrate
 
@@ -33,10 +35,19 @@ def create_app(config_object=None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # 3. 注册蓝图
+    # 3. 注册自定义 Jinja2 过滤器
+    @app.template_filter('markdown')
+    def render_markdown(text):
+        """将 Markdown 文本转换为 HTML"""
+        return markdown.markdown(
+            text,
+            extensions=['fenced_code', 'tables', 'toc']
+        )
+
+    # 4. 注册蓝图
     register_blueprints(app)
 
-    # 4. 首次运行时自动建表（生产环境建议使用 Flask-Migrate 管理迁移）
+    # 5. 首次运行时自动建表（生产环境建议使用 Flask-Migrate 管理迁移）
     with app.app_context():
         db.create_all()
 

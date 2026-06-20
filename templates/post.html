@@ -69,8 +69,11 @@
             {# 文章正文 #}
             <div class="card-body pt-0">
                 <div class="post-content fs-5 lh-lg">
-                    {# 使用 nl2br 过滤器保留换行;如使用 Markdown 可改为 |safe #}
-                    {{ post.content | replace('\n', '<br>') | safe }}
+                    {% if post.is_markdown %}
+                        {{ post.content | markdown | safe }}
+                    {% else %}
+                        {{ post.content | replace('\n', '<br>') | safe }}
+                    {% endif %}
                 </div>
             </div>
 
