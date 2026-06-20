@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block description %}{{ post.content[:160] }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+
+        {# 面包屑导航 #}
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('index') }}" class="text-decoration-none">
+                        <i class="bi bi-house-door me-1"></i>首页
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">文章详情</li>
+            </ol>
+        </nav>
+
+        {# 文章卡片 #}
+        <article class="post-detail card shadow-sm">
+
+            {# 文章头部 #}
+            <header class="card-header bg-white border-0 pt-4 pb-3">
+                <h1 class="post-title display-6 fw-bold mb-3">{{ post.title }}</h1>
+
+                <div class="post-meta text-muted small">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    <time datetime="{{ post.created_at }}">
+                        发布于 {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at is not string else post.created_at }}
+                    </time>
+                    {% if post.author %}
+                        <span class="mx-2">&middot;</span>
+                        <i class="bi bi-person me-1"></i>
+                        <span>{{ post.author }}</span>
+                    {% endif %}
+                    {% if post.updated_at and post.updated_at != post.created_at %}
+                        <span class="mx-2">&middot;</span>
+                        <i class="bi bi-pencil-square me-1"></i>
+                        <time datetime="{{ post.updated_at }}">
+                            更新于 {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at is not string else post.updated_at }}
+                        </time>
+                    {% endif %}
+                </div>
+            </header>
+
+            {# 文章正文 #}
+            <div class="card-body pt-0">
+                <div class="post-content fs-5 lh-lg">
+                    {# 使用 nl2br 过滤器保留换行;如使用 Markdown 可改为 |safe #}
+                    {{ post.content | replace('\n', '<br>') | safe }}
+                </div>
+            </div>
+
+            {# 文章底部操作栏 #}
+            <footer class="card-footer bg-white border-top">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+
+                    {# 左侧:返回按钮 #}
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>返回列表
+                    </a>
+
+                    {# 右侧:编辑/删除按钮 #}
+                    <div class="btn-group" role="group" aria-label="文章操作">
+                        <a href="{{ url_for('edit', post_id=post.id) }}"
+                           class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-pencil me-1"></i>编辑
+                        </a>
+                        <button type="button"
+                                class="btn btn-outline-danger btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#deleteModal"
+                                data-post-id="{{ post.id }}"
+                                data-post-title="{{ post.title }}">
+                            <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                    </div>
+                </div>
+            </footer>
+        </article>
+
+        {# 评论区占位(后续可扩展) #}
+        <section class="comments-section mt-5">
+            <h3 class="h5 mb-3">
+                <i class="bi bi-chat-left-text me-2"></i>评论
+                <span class="badge bg-secondary ms-1">0</span>
+            </h3>
+            <div class="card">
+                <div class="card-body text-center text-muted py-4">
+                    <i class="bi bi-chat-dots display-6 d-block mb-2 opacity-50"></i>
+                    <p class="mb-0">评论功能即将上线</p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+{# 删除确认模态框 #}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>确认删除
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">你确定要删除以下文章吗?</p>
+                <p class="fw-bold text-danger mb-2" id="deletePostTitle">-</p>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>此操作不可撤销,文章将被永久删除。
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>取消
+                </button>
+                <form id="deleteForm" method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>确认删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 删除模态框交互:动态填充文章标题
+    (function () {
+        const deleteModal = document.getElementById('deleteModal');
+        if (!deleteModal) return;
+        deleteModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const title = button.getAttribute('data-post-title') || '该文章';
+            document.getElementById('deletePostTitle').textContent = title;
+        });
+    })();
+</script>
+{% endblock %}

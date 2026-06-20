@@ -1,0 +1,169 @@
+{# ====================================================================
+   macros.html - Jinja2 宏定义
+   使用方法: {% import "macros.html" as macros %}
+   ==================================================================== #}
+
+{# ----------------------------------------------------------------
+   宏: post_card(post)
+   功能: 渲染单篇文章卡片
+   参数:
+     - post: 字典或对象,需包含 id, title, content, created_at, author(可选)
+   ---------------------------------------------------------------- #}
+{% macro post_card(post) %}
+    <div class="card post-card mb-4 shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title h4 mb-2">
+                <a href="{{ url_for('post', post_id=post.id) }}"
+                   class="text-decoration-none text-dark stretched-link-inverse">
+                    {{ post.title }}
+                </a>
+            </h2>
+
+            <div class="post-meta text-muted small mb-3">
+                <i class="bi bi-calendar3 me-1"></i>
+                <time datetime="{{ post.created_at }}">
+                    {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at is not string else post.created_at }}
+                </time>
+                {% if post.author %}
+                    <span class="mx-2">&middot;</span>
+                    <i class="bi bi-person me-1"></i>
+                    <span>{{ post.author }}</span>
+                {% endif %}
+                {% if post.updated_at and post.updated_at != post.created_at %}
+                    <span class="mx-2">&middot;</span>
+                    <i class="bi bi-pencil-square me-1"></i>
+                    <span>已更新</span>
+                {% endif %}
+            </div>
+
+            <p class="card-text post-excerpt">
+                {{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}
+            </p>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <a href="{{ url_for('post', post_id=post.id) }}"
+                   class="btn btn-sm btn-outline-primary">
+                    阅读全文 <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+                {% if post.comment_count is defined %}
+                    <small class="text-muted">
+                        <i class="bi bi-chat-left-text me-1"></i>{{ post.comment_count }} 条评论
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endmacro %}
+
+
+{# ----------------------------------------------------------------
+   宏: pagination(pagination, endpoint)
+   功能: 渲染分页导航
+   参数:
+     - pagination: Flask-SQLAlchemy Pagination 对象
+       需包含: page, pages, has_prev, has_next,
+                prev_num, next_num, iter_pages()
+     - endpoint: 视图函数端点名,默认 'index'
+   ---------------------------------------------------------------- #}
+{% macro pagination(pagination, endpoint='index') %}
+    {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="文章分页导航" class="mt-4">
+            <ul class="pagination justify-content-center">
+
+                {# 上一页 #}
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    {% if pagination.has_prev %}
+                        <a class="page-link"
+                           href="{{ url_for(endpoint, page=pagination.prev_num) }}"
+                           aria-label="上一页">
+                            <i class="bi bi-chevron-left"></i>
+                            <span class="d-none d-sm-inline ms-1">上一页</span>
+                        </a>
+                    {% else %}
+                        <span class="page-link" aria-hidden="true">
+                            <i class="bi bi-chevron-left"></i>
+                            <span class="d-none d-sm-inline ms-1">上一页</span>
+                        </span>
+                    {% endif %}
+                </li>
+
+                {# 页码 #}
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == pagination.page %}
+                            <li class="page-item active" aria-current="page">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="{{ url_for(endpoint, page=page_num) }}">{{ page_num }}</a>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&hellip;</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {# 下一页 #}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    {% if pagination.has_next %}
+                        <a class="page-link"
+                           href="{{ url_for(endpoint, page=pagination.next_num) }}"
+                           aria-label="下一页">
+                            <span class="d-none d-sm-inline me-1">下一页</span>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    {% else %}
+                        <span class="page-link" aria-hidden="true">
+                            <span class="d-none d-sm-inline me-1">下一页</span>
+                            <i class="bi bi-chevron-right"></i>
+                        </span>
+                    {% endif %}
+                </li>
+            </ul>
+
+            <p class="text-center text-muted small mt-2">
+                第 <strong>{{ pagination.page }}</strong> 页 /
+                共 <strong>{{ pagination.pages }}</strong> 页
+                (总计 {{ pagination.total }} 篇文章)
+            </p>
+        </nav>
+    {% endif %}
+{% endmacro %}
+
+
+{# ----------------------------------------------------------------
+   宏: render_field(field, label_class='form-label')
+   功能: 渲染带 Bootstrap 错误状态的表单字段
+   参数:
+     - field: WTForms 字段对象
+     - label_class: label 的 CSS 类
+   ---------------------------------------------------------------- #}
+{% macro render_field(field, label_class='form-label') %}
+    <div class="mb-3">
+        {{ field.label(class=label_class) }}
+        {% if field.type == 'TextAreaField' %}
+            {{ field(class="form-control" + (" is-invalid" if field.errors else ""), rows=field.rows if field.rows else 8) }}
+        {% elif field.type in ('BooleanField',) %}
+            <div class="form-check">
+                {{ field(class="form-check-input" + (" is-invalid" if field.errors else "")) }}
+                {{ field.label(class="form-check-label") }}
+            </div>
+        {% else %}
+            {{ field(class="form-control" + (" is-invalid" if field.errors else "")) }}
+        {% endif %}
+        {% if field.description %}
+            <div class="form-text">{{ field.description }}</div>
+        {% endif %}
+        {% if field.errors %}
+            <div class="invalid-feedback d-block">
+                {% for error in field.errors %}
+                    <div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+{% endmacro %}

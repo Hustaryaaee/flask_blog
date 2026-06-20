@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% import "macros.html" as ui %}
+
+{% block title %}编辑:{{ post.title }}{% endblock %}
+
+{% block description %}编辑文章 #{{ post.id }}:{{ post.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+
+        {# 面包屑导航 #}
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('index') }}" class="text-decoration-none">
+                        <i class="bi bi-house-door me-1"></i>首页
+                    </a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('post', post_id=post.id) }}" class="text-decoration-none">
+                        文章详情
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">编辑</li>
+            </ol>
+        </nav>
+
+        {# 页面头部 #}
+        <header class="page-header mb-4 pb-3 border-bottom">
+            <h1 class="display-6 fw-bold mb-2">
+                <i class="bi bi-pencil me-2 text-primary"></i>编辑文章
+            </h1>
+            <p class="text-muted mb-0">
+                正在编辑:
+                <span class="fw-semibold text-dark">&ldquo;{{ post.title }}&rdquo;</span>
+                <span class="badge bg-secondary ms-2">#{{ post.id }}</span>
+            </p>
+        </header>
+
+        {# 编辑表单 #}
+        <form method="POST"
+              action="{{ url_for('edit', post_id=post.id) }}"
+              class="post-form needs-validation"
+              novalidate
+              id="postEditForm">
+
+            {# CSRF 保护 #}
+            {% if form and form.csrf_token is defined %}
+                {{ form.csrf_token() }}
+            {% elif csrf_token is defined %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% endif %}
+
+            {# 隐藏字段:文章ID(冗余存储,便于后端校验) #}
+            <input type="hidden" name="post_id" value="{{ post.id }}">
+
+            {# ---------- 标题字段 ---------- #}
+            <div class="mb-4">
+                <label for="title" class="form-label fw-semibold">
+                    文章标题 <span class="text-danger">*</span>
+                </label>
+                <input type="text"
+                       class="form-control form-control-lg {% if form and form.title and form.title.errors %}is-invalid{% endif %}"
+                       id="title"
+                       name="title"
+                       placeholder="给你的文章起一个吸引人的标题..."
+                       value="{{ form.title.data if form and form.title and form.title.data else post.title }}"
+                       required
+                       minlength="2"
+                       maxlength="200"
+                       autocomplete="off">
+                <div class="form-text">
+                    标题长度 2-200 字符 <span class="float-end" id="titleCounter">0 / 200</span>
+                </div>
+                {% if form and form.title and form.title.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for err in form.title.errors %}
+                            <div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="invalid-feedback">请输入文章标题(至少 2 个字符)</div>
+                {% endif %}
+            </div>
+
+            {# ---------- 作者字段 ---------- #}
+            <div class="mb-4">
+                <label for="author" class="form-label fw-semibold">作者</label>
+                <input type="text"
+                       class="form-control {% if form and form.author and form.author.errors %}is-invalid{% endif %}"
+                       id="author"
+                       name="author"
+                       placeholder="留空则使用默认作者"
+                       value="{{ form.author.data if form and form.author and form.author.data else (post.author if post.author else '') }}"
+                       maxlength="50"
+                       autocomplete="name">
+                {% if form and form.author and form.author.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for err in form.author.errors %}
+                            <div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {# ---------- 正文字段 ---------- #}
+            <div class="mb-4">
+                <label for="content" class="form-label fw-semibold">
+                    文章正文 <span class="text-danger">*</span>
+                </label>
+                <textarea class="form-control {% if form and form.content and form.content.errors %}is-invalid{% endif %}"
+                          id="content"
+                          name="content"
+                          rows="14"
+                          placeholder="开始书写你的内容..."
+                          required
+                          minlength="10">{{ form.content.data if form and form.content and form.content.data else post.content }}</textarea>
+                <div class="form-text">
+                    至少 10 个字符
+                    <span class="float-end">
+                        <span id="contentCounter">0 字符</span>
+                        <span class="mx-2">&middot;</span>
+                        原 {{ post.content|length }} 字符
+                    </span>
+                </div>
+                {% if form and form.content and form.content.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for err in form.content.errors %}
+                            <div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="invalid-feedback">请输入文章正文(至少 10 个字符)</div>
+                {% endif %}
+            </div>
+
+            {# ---------- 元信息(只读) ---------- #}
+            <div class="card bg-light border-0 mb-4">
+                <div class="card-body py-2">
+                    <div class="row text-muted small">
+                        <div class="col-md-6">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            创建于
+                            <time datetime="{{ post.created_at }}">
+                                {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at is not string else post.created_at }}
+                            </time>
+                        </div>
+                        {% if post.updated_at %}
+                        <div class="col-md-6">
+                            <i class="bi bi-clock-history me-1"></i>
+                            上次更新
+                            <time datetime="{{ post.updated_at }}">
+                                {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at is not string else post.updated_at }}
+                            </time>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {# ---------- 表单操作按钮 ---------- #}
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-3 border-top">
+                <a href="{{ url_for('post', post_id=post.id) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-lg me-1"></i>取消
+                </a>
+                <div class="btn-group" role="group">
+                    <button type="reset"
+                            class="btn btn-outline-warning"
+                            data-bs-toggle="tooltip"
+                            title="恢复为初始值">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>撤销修改
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="bi bi-check-circle me-1"></i>保存修改
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        {# 离开页面确认提示(如果表单被修改) #}
+        <script>
+            (function () {
+                const form = document.getElementById('postEditForm');
+                if (!form) return;
+                let dirty = false;
+                form.addEventListener('input', function () { dirty = true; });
+                form.addEventListener('submit', function () { dirty = false; });
+                window.addEventListener('beforeunload', function (e) {
+                    if (dirty) {
+                        e.preventDefault();
+                        e.returnValue = '您有未保存的修改,确定要离开吗?';
+                        return e.returnValue;
+                    }
+                });
+            })();
+        </script>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (function () {
+        const titleEl = document.getElementById('title');
+        const titleCounter = document.getElementById('titleCounter');
+        const contentEl = document.getElementById('content');
+        const contentCounter = document.getElementById('contentCounter');
+
+        function updateCount(input, counter, max) {
+            const len = input.value.length;
+            if (max) {
+                counter.textContent = len + ' / ' + max;
+                counter.classList.toggle('text-danger', len > max);
+            } else {
+                counter.textContent = len + ' 字符';
+            }
+        }
+
+        if (titleEl && titleCounter) {
+            updateCount(titleEl, titleCounter, 200);
+            titleEl.addEventListener('input', function () {
+                updateCount(titleEl, titleCounter, 200);
+            });
+        }
+        if (contentEl && contentCounter) {
+            updateCount(contentEl, contentCounter, null);
+            contentEl.addEventListener('input', function () {
+                updateCount(contentEl, contentCounter, null);
+            });
+        }
+    })();
+</script>
+{% endblock %}
