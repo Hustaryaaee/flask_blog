@@ -16,6 +16,9 @@ except ImportError:
     # 如果未安装 python-dotenv，则直接使用系统环境变量
     pass
 
+# 项目根目录（config.py 所在目录）
+basedir = Path(__file__).parent.resolve()
+
 
 class Config:
     """基础配置类"""
@@ -33,6 +36,11 @@ class Config:
 
     # Flask-Migrate 配置
     SQLALCHEMY_MIGRATE_REPO = os.environ.get('SQLALCHEMY_MIGRATE_REPO')
+
+    # 文件上传配置
+    UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
+    ALLOWED_EXTENSIONS = {'md', 'txt'}
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
 
 class DevelopmentConfig(Config):

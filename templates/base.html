@@ -42,13 +42,23 @@
             <div class="collapse navbar-collapse" id="navbarMain">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}"
+                        <a class="nav-link {% if request.endpoint == 'blog.index' %}active{% endif %}"
                            href="{{ url_for('blog.index') }}">
                             <i class="bi bi-house-door me-1"></i>首页
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('category.admin') %}active{% endif %}"
+                           href="{{ url_for('category.admin_categories') }}">
+                            <i class="bi bi-tags me-1"></i>分类/标签
+                        </a>
+                    </li>
                 </ul>
-                <div class="d-flex">
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('upload.upload') }}"
+                       class="btn btn-outline-light btn-sm fw-semibold {% if request.endpoint == 'upload.upload' %}active{% endif %}">
+                        <i class="bi bi-cloud-upload me-1"></i>上传文件
+                    </a>
                     <a href="{{ url_for('blog.create') }}" class="btn btn-light btn-sm fw-semibold">
                         <i class="bi bi-plus-circle me-1"></i>写文章
                     </a>

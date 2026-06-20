@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}上传Markdown文件{% endblock %}
+
+{% block description %}上传本地 Markdown 或文本文件以创建博客文章{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('blog.index') }}" class="text-decoration-none">
+                        <i class="bi bi-house-door me-1"></i>首页
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">上传文件</li>
+            </ol>
+        </nav>
+
+        <header class="page-header mb-4 pb-3 border-bottom">
+            <h1 class="display-6 fw-bold mb-2">
+                <i class="bi bi-cloud-upload me-2 text-primary"></i>上传Markdown文件
+            </h1>
+            <p class="text-muted mb-0">支持 .md 与 .txt 格式,最大 16MB</p>
+        </header>
+
+        <form method="POST"
+              enctype="multipart/form-data"
+              action="{{ url_for('upload.upload') }}"
+              class="upload-form needs-validation"
+              novalidate>
+
+            {% if csrf_token is defined %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% endif %}
+
+            <div class="mb-3">
+                <label for="file" class="form-label fw-semibold">选择 .md 文件</label>
+                <input type="file"
+                       id="file"
+                       name="file"
+                       accept=".md,.txt"
+                       class="form-control"
+                       required>
+                <div class="form-text">仅支持 Markdown (<code>.md</code>) 与纯文本 (<code>.txt</code>) 文件</div>
+                <div class="invalid-feedback">请选择要上传的文件</div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload me-2"></i>上传并编辑
+                </button>
+                <button type="reset" class="btn btn-outline-warning">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>重置
+                </button>
+                <a href="{{ url_for('blog.index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-lg me-1"></i>返回首页
+                </a>
+            </div>
+        </form>
+
+        <div class="alert alert-info mt-4 d-flex align-items-start">
+            <i class="bi bi-info-circle me-2 mt-1"></i>
+            <div>
+                上传成功后,系统会自动读取文件内容并跳转到"写文章"页面,
+                你可以在那里继续编辑后再发布。
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

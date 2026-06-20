@@ -8,7 +8,7 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-lg-8 mx-auto">
+    <div class="col-lg-10 mx-auto">
 
         {# 面包屑导航 #}
         <nav aria-label="breadcrumb" class="mb-3">
@@ -85,24 +85,83 @@
                 {% endif %}
             </div>
 
-            {# ---------- 作者字段 ---------- #}
-            <div class="mb-4">
-                <label for="author" class="form-label fw-semibold">作者</label>
-                <input type="text"
-                       class="form-control {% if form and form.author and form.author.errors %}is-invalid{% endif %}"
-                       id="author"
-                       name="author"
-                       placeholder="留空则使用默认作者"
-                       value="{{ form.author.data if form and form.author and form.author.data else (post.author if post.author else '') }}"
-                       maxlength="50"
-                       autocomplete="name">
-                {% if form and form.author and form.author.errors %}
-                    <div class="invalid-feedback d-block">
-                        {% for err in form.author.errors %}
-                            <div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>
+            {# ---------- 分类与标签 ---------- #}
+            {% set _current_tags_value = '' %}
+            {% if form and form.tags and form.tags.data %}
+                {% set _current_tags_value = form.tags.data %}
+            {% elif post.tags %}
+                {% set _current_tags_value = post.tags | map(attribute='name') | join(', ') %}
+            {% endif %}
+            {% set _current_category_id = post.category_id if post.category_id else 0 %}
+            {% if form and form.category_id %}
+                {% set _current_category_id = form.category_id.data or 0 %}
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <label for="category_id" class="form-label fw-semibold">
+                        <i class="bi bi-folder me-1 text-warning"></i>文章分类
+                    </label>
+                    <select class="form-select"
+                            id="category_id"
+                            name="category_id">
+                        <option value="">-- 未分类 --</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}"
+                                {% if cat.id == _current_category_id %}selected{% endif %}>
+                                {{ cat.name }}
+                                {% if cat.description %}- {{ cat.description }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">
+                        没有合适的分类?
+                        <a href="{{ url_for('category.admin_categories') }}" target="_blank">前往管理</a>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <label for="tags" class="form-label fw-semibold">
+                        <i class="bi bi-tags me-1 text-info"></i>文章标签
+                    </label>
+                    <input type="text"
+                           class="form-control"
+                           id="tags"
+                           name="tags"
+                           placeholder="输入后按回车或逗号添加..."
+                           value="{{ _current_tags_value }}"
+                           autocomplete="off">
+                    <div class="form-text">
+                        支持中英文逗号 / 空格分隔多个标签
+                    </div>
+                    {# 已存在标签提示(点击即可填入) #}
+                    {% if all_tags and all_tags|length > 0 %}
+                    <div class="mt-2">
+                        <small class="text-muted me-1">已有标签:</small>
+                        {% for tag in all_tags[:15] %}
+                            <button type="button"
+                                    class="badge bg-light text-dark border me-1 mb-1 tag-suggestion"
+                                    data-tag="{{ tag.name }}">
+                                {{ tag.name }}
+                            </button>
                         {% endfor %}
                     </div>
-                {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <div class="form-check">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           id="is_markdown"
+                           name="is_markdown"
+                           value="1"
+                           {% if (form and form.is_markdown and form.is_markdown.data) or (post.is_markdown is defined and post.is_markdown) %}checked{% endif %}>
+                    <label class="form-check-label" for="is_markdown">
+                        使用 Markdown 格式
+                    </label>
+                </div>
             </div>
 
             {# ---------- 正文字段 ---------- #}
@@ -231,6 +290,20 @@
                 updateCount(contentEl, contentCounter, null);
             });
         }
+
+        // 标签自动补全
+        const tagsInput = document.getElementById('tags');
+        document.querySelectorAll('.tag-suggestion').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!tagsInput) return;
+                const tag = btn.getAttribute('data-tag');
+                const current = tagsInput.value.trim();
+                const list = current ? current.split(/[,，\s]+/) : [];
+                if (list.includes(tag)) return;
+                tagsInput.value = current ? (current + ', ' + tag) : tag;
+                tagsInput.focus();
+            });
+        });
     })();
 </script>
 {% endblock %}

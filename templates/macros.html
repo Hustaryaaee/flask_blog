@@ -40,6 +40,13 @@
                 {{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}
             </p>
 
+            {# 分类与标签 #}
+            {% if post.category or (post.tags and post.tags|length > 0) %}
+            <div class="post-taxonomy mb-3">
+                {{ render_post_meta(post) }}
+            </div>
+            {% endif %}
+
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <a href="{{ url_for('blog.detail', slug=post.slug) }}"
                    class="btn btn-sm btn-outline-primary">
@@ -166,4 +173,81 @@
             </div>
         {% endif %}
     </div>
+{% endmacro %}
+
+
+{# ----------------------------------------------------------------
+   宏: render_categories(categories)
+   功能: 渲染分类侧边栏列表(带文章数量徽章)
+   参数:
+     - categories: 分类对象列表,每个对象需含 name, slug, posts
+   ---------------------------------------------------------------- #}
+{% macro render_categories(categories) %}
+    {% if categories and categories|length > 0 %}
+        <div class="list-group list-group-flush">
+            {% for cat in categories %}
+            <a href="{{ url_for('category.category_posts', slug=cat.slug) }}"
+               class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="bi bi-folder-fill text-warning me-2"></i>{{ cat.name }}
+                </span>
+                <span class="badge bg-primary rounded-pill">
+                    {{ cat.posts.count() if cat.posts is iterable and cat.posts is not string else cat.posts|length }}
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center text-muted small py-3">
+            <i class="bi bi-folder-x me-1"></i>暂无分类
+        </div>
+    {% endif %}
+{% endmacro %}
+
+
+{# ----------------------------------------------------------------
+   宏: render_tags(tags)
+   功能: 渲染标签云
+   参数:
+     - tags: 标签对象列表,每个对象需含 name, slug
+   ---------------------------------------------------------------- #}
+{% macro render_tags(tags) %}
+    {% if tags and tags|length > 0 %}
+        <div class="tags-cloud">
+            {% for tag in tags %}
+            <a href="{{ url_for('category.tag_posts', slug=tag.slug) }}"
+               class="badge bg-secondary text-decoration-none me-1 mb-1 p-2">
+                <i class="bi bi-tag-fill me-1"></i>{{ tag.name }}
+            </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center text-muted small py-3">
+            <i class="bi bi-tags me-1"></i>暂无标签
+        </div>
+    {% endif %}
+{% endmacro %}
+
+
+{# ----------------------------------------------------------------
+   宏: render_post_meta(post)
+   功能: 在文章卡片/详情中显示分类与标签
+   参数:
+     - post: Post 对象,需含 category, tags
+   ---------------------------------------------------------------- #}
+{% macro render_post_meta(post) %}
+    {% if post.category %}
+        <a href="{{ url_for('category.category_posts', slug=post.category.slug) }}"
+           class="badge bg-warning text-dark text-decoration-none me-1">
+            <i class="bi bi-folder-fill me-1"></i>{{ post.category.name }}
+        </a>
+    {% endif %}
+    {% if post.tags %}
+        {% for tag in post.tags %}
+            <a href="{{ url_for('category.tag_posts', slug=tag.slug) }}"
+               class="badge bg-info text-decoration-none me-1">
+                <i class="bi bi-tag-fill me-1"></i>{{ tag.name }}
+            </a>
+        {% endfor %}
+    {% endif %}
 {% endmacro %}
