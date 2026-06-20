@@ -40,6 +40,9 @@ def create_app(config_object=None) -> Flask:
     migrate.init_app(app, db)
     csrf.init_app(app)
 
+    # 2.1 排除 API 端点的 CSRF 验证
+    app.config['WTF_CSRF_EXEMPTIONS'] = {'/api/': True}
+
     # 3. 全局上下文处理器 - 提供 csrf_token 到所有模板
     @app.context_processor
     def inject_csrf_token():
