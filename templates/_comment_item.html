@@ -1,0 +1,55 @@
+{# 单条评论 + 嵌套回复 #}
+{% set can_delete_comment = current_user.is_authenticated and (
+    current_user.is_admin() or
+    (c.author_id and c.author_id == current_user.id) or
+    (post.author_id == current_user.id)
+) %}
+<div class="comment-item mb-3" id="comment-{{ c.id }}">
+    <div class="d-flex">
+        <img src="{{ c.avatar }}" alt="" width="40" height="40" class="rounded-circle me-2 flex-shrink-0" style="object-fit: cover;">
+        <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    {% if c.author_id %}
+                        <a href="{{ url_for('auth.profile', username=c.author.username) }}" class="fw-semibold text-decoration-none">{{ c.display_name }}</a>
+                    {% else %}
+                        <span class="fw-semibold">{{ c.display_name }}</span>
+                        <span class="badge bg-light text-secondary ms-1">游客</span>
+                    {% endif %}
+                    <small class="text-muted ms-2">
+                        <i class="bi bi-clock me-1"></i>{{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at }}
+                    </small>
+                    {% if c.status == 'pending' %}
+                        <span class="badge bg-warning text-dark ms-1">待审核</span>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if current_user.is_authenticated %}
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 me-2"
+                            onclick="replyTo({{ c.id }}, '{{ c.display_name|e }}')">回复</button>
+                    {% endif %}
+                    {% if can_delete_comment %}
+                    <form method="POST" action="{{ url_for('comment.delete', comment_id=c.id) }}"
+                          class="d-inline" onsubmit="return confirm('确定删除该评论？');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-link text-danger text-decoration-none p-0">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="comment-content mt-1">{{ c.content | replace('\n', '<br>') | safe }}</div>
+
+            {# 嵌套回复 #}
+            {% set kids = replies_map.get(c.id, []) %}
+            {% if kids %}
+                <div class="replies ms-4 mt-2 border-start ps-3">
+                    {% for c in kids %}
+                        {% include "_comment_item.html" %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

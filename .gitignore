@@ -35,9 +35,6 @@ htmlcov/
 # Backup
 backup/
 
-# Migration scripts
-migrate_db.py
-
 # Uploads
 uploads/
 

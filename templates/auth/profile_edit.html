@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}编辑资料{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('blog.index') }}">首页</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('auth.profile') }}">个人中心</a></li>
+                <li class="breadcrumb-item active">编辑资料</li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h4 class="mb-3"><i class="bi bi-person-gear me-2"></i>编辑个人资料</h4>
+
+                <form method="POST" action="{{ url_for('auth.profile_edit') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3 text-center">
+                        <img src="{{ user.avatar() }}"
+                             alt="{{ user.username }}"
+                             class="rounded-circle mb-2"
+                             width="100" height="100"
+                             style="object-fit: cover;">
+                        <p class="text-muted small mb-0">当前头像预览</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="avatar_url" class="form-label">头像 URL <span class="text-muted small">(可选)</span></label>
+                        <input type="url"
+                               class="form-control"
+                               id="avatar_url"
+                               name="avatar_url"
+                               value="{{ user.avatar_url or '' }}"
+                               placeholder="留空则使用首字母默认头像"
+                               maxlength="255">
+                        <div class="form-text">支持 jpg/png/svg 链接, 推荐使用 Gravatar 或 DiceBear</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="bio" class="form-label">个人简介</label>
+                        <textarea class="form-control"
+                                  id="bio"
+                                  name="bio"
+                                  rows="4"
+                                  maxlength="300"
+                                  placeholder="一句话介绍一下自己吧">{{ user.bio or '' }}</textarea>
+                        <div class="form-text">最多 300 字符</div>
+                    </div>
+
+                    <div class="alert alert-light border small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        用户名、邮箱、角色等关键信息暂不支持自助修改, 如需变更请联系管理员。
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('auth.profile') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg me-1"></i>取消
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i>保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

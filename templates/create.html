@@ -22,24 +22,27 @@
         </nav>
 
         <header class="page-header mb-4 pb-3 border-bottom">
-            <h1 class="display-6 fw-bold mb-2">
-                <i class="bi bi-pencil-square me-2 text-primary"></i>写新文章
-            </h1>
-            <p class="text-muted mb-0">分享你的想法、技术或生活感悟</p>
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h1 class="display-6 fw-bold mb-2">
+                        <i class="bi bi-pencil-square me-2 text-primary"></i>写新文章
+                    </h1>
+                    <p class="text-muted mb-0">分享你的想法、技术或生活感悟</p>
+                </div>
+                <a href="{{ url_for('post_io.import_md') }}" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-upload me-1"></i>导入 .md
+                </a>
+            </div>
         </header>
 
-        {# 文件上传区域 - 拖拽或点击上传 #}
+        {# 拖拽上传 #}
         <div class="card border-primary mb-4 shadow-sm" id="uploadZone">
             <div class="card-body text-center py-4">
                 <div class="upload-content">
                     <i class="bi bi-cloud-arrow-up display-4 text-primary mb-3"></i>
                     <h5 class="mb-2">拖拽 Markdown 文件到此处</h5>
                     <p class="text-muted mb-3">或点击下方按钮选择文件</p>
-                    <input type="file"
-                           id="fileInput"
-                           name="file"
-                           accept=".md,.txt"
-                           class="d-none">
+                    <input type="file" id="fileInput" name="file" accept=".md,.txt" class="d-none">
                     <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
                         <i class="bi bi-file-earmark-text me-1"></i>选择 .md / .txt 文件
                     </button>
@@ -54,17 +57,11 @@
             </div>
         </div>
 
-        <form method="POST"
-              action="{{ url_for('blog.create') }}"
-              enctype="multipart/form-data"
-              id="postForm"
-              class="post-form needs-validation"
-              novalidate
-              id="postCreateForm">
+        <form method="POST" action="{{ url_for('blog.create') }}"
+              enctype="multipart/form-data" id="postForm"
+              class="post-form needs-validation" novalidate>
 
-            {% if form and form.csrf_token is defined %}
-                {{ form.csrf_token() }}
-            {% elif csrf_token is defined %}
+            {% if csrf_token is defined %}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% endif %}
 
@@ -72,29 +69,13 @@
                 <label for="title" class="form-label fw-semibold">
                     文章标题 <span class="text-danger">*</span>
                 </label>
-                <input type="text"
-                       class="form-control form-control-lg {% if form and form.title and form.title.errors %}is-invalid{% endif %}"
-                       id="title"
-                       name="title"
-                       placeholder="给你的文章起一个吸引人的标题..."
-                       value="{{ form.title.data if form and form.title else (title if title is defined else '') }}"
-                       required
-                       minlength="2"
-                       maxlength="200"
-                       autocomplete="off"
-                       autofocus>
+                <input type="text" class="form-control form-control-lg" id="title"
+                       name="title" placeholder="给你的文章起一个吸引人的标题..."
+                       value="{{ title if title is defined else '' }}"
+                       required minlength="2" maxlength="200" autocomplete="off" autofocus>
                 <div class="form-text">
                     标题长度 2-200 字符 <span class="float-end" id="titleCounter">0 / 200</span>
                 </div>
-                {% if form and form.title and form.title.errors %}
-                    <div class="invalid-feedback d-block">
-                        {% for err in form.title.errors %}
-                            <div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="invalid-feedback">请输入文章标题(至少 2 个字符)</div>
-                {% endif %}
             </div>
 
             <div class="row">
@@ -102,71 +83,100 @@
                     <label for="category_id" class="form-label fw-semibold">
                         <i class="bi bi-folder me-1 text-warning"></i>文章分类
                     </label>
-                    <div class="input-group">
-                        <select class="form-select"
-                                id="category_id"
-                                name="category_id">
-                            <option value="">-- 未分类 --</option>
-                            {% for cat in categories %}
-                                <option value="{{ cat.id }}"
-                                    {% if (category_id is defined and category_id == cat.id) or (form and form.category_id and form.category_id.data == cat.id) %}
-                                    selected{% endif %}>
-                                    {{ cat.name }}
-                                    {% if cat.description %}- {{ cat.description }}{% endif %}
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <button class="btn btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#categoryModal" title="新建分类">
-                            <i class="bi bi-plus-lg"></i>
-                        </button>
-                    </div>
+                    <select class="form-select" id="category_id" name="category_id">
+                        <option value="">-- 未分类 --</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}"
+                                {% if category_id is defined and category_id == cat.id %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
                 </div>
-
                 <div class="col-md-6 mb-4">
                     <label class="form-label fw-semibold">
                         <i class="bi bi-tags me-1 text-info"></i>文章标签
                     </label>
-                    {# 已选标签显示 #}
-                    <div class="tag-selected-wrapper mb-2" id="tagSelectedWrapper">
-                        <input type="hidden" name="tags" id="tagsHidden" value="{{ tags_raw if tags_raw is defined else '' }}">
+                    <input type="text" class="form-control" id="tags" name="tags"
+                           placeholder="多个标签用逗号分隔"
+                           value="{{ tags_raw if tags_raw is defined else '' }}">
+                    {% if all_tags and all_tags|length > 0 %}
+                    <div class="mt-2">
+                        {% for tag in all_tags[:15] %}
+                            <button type="button" class="badge bg-light text-dark border me-1 mb-1 tag-suggestion" data-tag="{{ tag.name }}">{{ tag.name }}</button>
+                        {% endfor %}
                     </div>
-                    {# 已有标签选择 #}
-                    <div class="input-group">
-                        <div class="border rounded p-2 flex-grow-1" style="max-height: 120px; overflow-y: auto;" id="tagListContainer">
-                            {% if all_tags and all_tags|length > 0 %}
-                                {% for tag in all_tags %}
-                                    <button type="button"
-                                            class="badge tag-item me-1 mb-1 {% if selected_tags is defined and tag.name in selected_tags %}bg-primary text-white{% else %}bg-light text-dark border{% endif %}"
-                                            data-tag="{{ tag.name }}"
-                                            onclick="toggleTag(this)">
-                                        {{ tag.name }}
-                                    </button>
-                                {% endfor %}
-                            {% else %}
-                                <small class="text-muted">暂无标签</small>
-                            {% endif %}
-                        </div>
-                        <button class="btn btn-outline-info" type="button" data-bs-toggle="modal" data-bs-target="#tagModal" title="管理标签">
-                            <i class="bi bi-plus-lg"></i>
-                        </button>
-                    </div>
-                </div>
-                        <i class="bi bi-plus-lg me-1"></i>新建标签
-                    </button>
+                    {% endif %}
                 </div>
             </div>
 
             <div class="mb-4">
                 <div class="form-check">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           id="is_markdown"
-                           name="is_markdown"
-                           value="1"
-                           {% if (form and form.is_markdown and form.is_markdown.data) or (is_markdown is defined and is_markdown) %}checked{% endif %} checked>
-                    <label class="form-check-label" for="is_markdown">
-                        使用 Markdown 格式
-                    </label>
+                    <input class="form-check-input" type="checkbox" id="is_markdown" name="is_markdown" value="1"
+                           {% if is_markdown is defined and is_markdown %}checked{% endif %} checked>
+                    <label class="form-check-label" for="is_markdown">使用 Markdown 格式</label>
+                </div>
+            </div>
+
+            {# 阶段2: 发布选项 #}
+            <div class="card border-light-subtle mb-4">
+                <div class="card-header bg-light-subtle"><i class="bi bi-gear me-1"></i>发布选项</div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">状态</label>
+                            {% set cur_status = status if status is defined else 'published' %}
+                            <select class="form-select" name="status">
+                                {% for s in STATUS_CHOICES or ('draft', 'scheduled', 'published', 'archived') %}
+                                    <option value="{{ s }}" {% if s == cur_status %}selected{% endif %}>
+                                        {% if s == 'draft' %}草稿{% endif %}
+                                        {% if s == 'scheduled' %}定时发布{% endif %}
+                                        {% if s == 'published' %}立即发布{% endif %}
+                                        {% if s == 'archived' %}归档（仅管理员）{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">发布时间（定时）</label>
+                            <input type="datetime-local" class="form-control" name="published_at"
+                                   value="{{ published_at if published_at is defined else '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">封面图 URL</label>
+                            <input type="url" class="form-control" name="cover_image"
+                                   value="{{ cover_image if cover_image is defined else '' }}"
+                                   placeholder="https://...">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">摘要</label>
+                            <textarea class="form-control" name="excerpt" rows="2" maxlength="500"
+                                      placeholder="可选；留空则从正文自动截取">{{ excerpt if excerpt is defined else '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# 阶段2: SEO #}
+            <div class="card border-light-subtle mb-4">
+                <div class="card-header bg-light-subtle"><i class="bi bi-search me-1"></i>SEO（可选）</div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">SEO 标题</label>
+                            <input type="text" class="form-control" name="seo_title" maxlength="200"
+                                   value="{{ seo_title if seo_title is defined else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">SEO 关键词</label>
+                            <input type="text" class="form-control" name="seo_keywords" maxlength="200"
+                                   value="{{ seo_keywords if seo_keywords is defined else '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">SEO 描述</label>
+                            <textarea class="form-control" name="seo_description" rows="2" maxlength="300">{{ seo_description if seo_description is defined else '' }}</textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -174,25 +184,8 @@
                 <label for="content" class="form-label fw-semibold">
                     文章正文 <span class="text-danger">*</span>
                 </label>
-                <textarea class="form-control {% if form and form.content and form.content.errors %}is-invalid{% endif %}"
-                          id="content"
-                          name="content"
-                          rows="14"
-                          placeholder="开始书写你的内容...&#10;&#10;提示:支持纯文本,可使用换行分段。"
-                          required
-                          minlength="10">{{ form.content.data if form and form.content else (content if content is defined else '') }}</textarea>
-                <div class="form-text">
-                    至少 10 个字符 <span class="float-end" id="contentCounter">0 字符</span>
-                </div>
-                {% if form and form.content and form.content.errors %}
-                    <div class="invalid-feedback d-block">
-                        {% for err in form.content.errors %}
-                            <div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="invalid-feedback">请输入文章正文(至少 10 个字符)</div>
-                {% endif %}
+                <textarea class="form-control" id="content" name="content" rows="14"
+                          placeholder="开始书写你的内容..." required minlength="10">{{ content if content is defined else '' }}</textarea>
             </div>
 
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-3 border-top">
@@ -200,10 +193,7 @@
                     <i class="bi bi-x-lg me-1"></i>取消
                 </a>
                 <div class="btn-group" role="group">
-                    <button type="reset"
-                            class="btn btn-outline-warning"
-                            data-bs-toggle="tooltip"
-                            title="清空所有输入">
+                    <button type="reset" class="btn btn-outline-warning">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>重置
                     </button>
                     <button type="submit" class="btn btn-primary" id="submitBtn">
@@ -213,536 +203,101 @@
             </div>
         </form>
 
-        <aside class="card mt-4 border-info">
-            <div class="card-body">
-                <h6 class="card-title text-info mb-2">
-                    <i class="bi bi-lightbulb me-1"></i>写作小贴士
-                </h6>
-                <ul class="mb-0 small text-muted ps-3">
-                    <li>标题要简洁明了,吸引读者点击</li>
-                    <li>正文段落清晰,适当换行提升可读性</li>
-                    <li>善用分类与标签,让读者更容易找到你的文章</li>
-                    <li>发布前检查拼写和语法</li>
-                </ul>
-            </div>
-        </aside>
-
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    // 阶段4: EasyMDE 编辑器
+    let easyMDE = null;
+    if (typeof EasyMDE !== 'undefined') {
+        easyMDE = new EasyMDE({
+            element: document.getElementById('content'),
+            spellChecker: false,
+            autosave: { enabled: false },
+            minHeight: '320px',
+            placeholder: '开始书写你的内容…\n\n支持 Markdown、代码块 ```、数学公式 $...$ 等',
+            status: ['lines', 'words', 'cursor'],
+            toolbar: [
+                'bold', 'italic', 'heading', '|',
+                'quote', 'unordered-list', 'ordered-list', '|',
+                'link', 'image', 'table', 'code', 'horizontal-rule', '|',
+                'preview', 'side-by-side', 'fullscreen', '|',
+                'guide'
+            ],
+        });
+        document.getElementById('postForm').addEventListener('submit', function() {
+            easyMDE.codemirror.save();
+        });
+    }
+
+    // 计数器 & 拖拽
     (function () {
         const titleEl = document.getElementById('title');
         const titleCounter = document.getElementById('titleCounter');
         const contentEl = document.getElementById('content');
-        const contentCounter = document.getElementById('contentCounter');
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
-        const postForm = document.getElementById('postForm');
 
-        function updateCount(input, counter, max) {
-            const len = input.value.length;
-            if (max) {
-                counter.textContent = len + ' / ' + max;
-                counter.classList.toggle('text-danger', len > max);
-            } else {
-                counter.textContent = len + ' 字符';
+        function updateCount() {
+            if (titleEl && titleCounter) {
+                titleCounter.textContent = titleEl.value.length + ' / 200';
             }
         }
+        if (titleEl) titleEl.addEventListener('input', updateCount);
+        updateCount();
 
-        if (titleEl && titleCounter) {
-            updateCount(titleEl, titleCounter, 200);
-            titleEl.addEventListener('input', function () {
-                updateCount(titleEl, titleCounter, 200);
-            });
-        }
-        if (contentEl && contentCounter) {
-            updateCount(contentEl, contentCounter, null);
-            contentEl.addEventListener('input', function () {
-                updateCount(contentEl, contentCounter, null);
-            });
-        }
-
-        // 标签自动补全:从已有标签提示中点击
-        const tagsInput = document.getElementById('tags');
-        document.querySelectorAll('.tag-suggestion').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                if (!tagsInput) return;
-                const tag = btn.getAttribute('data-tag');
-                const current = tagsInput.value.trim();
-                if (current && !current.split(/[,，\s]+/).includes(tag)) {
-                    tagsInput.value = current + ', ' + tag;
-                } else if (!current) {
-                    tagsInput.value = tag;
-                }
-                tagsInput.focus();
-            });
-        });
-
-        // 文件上传处理
         if (uploadZone && fileInput) {
-            // 拖拽上传
-            uploadZone.addEventListener('dragover', function (e) {
+            uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('border-success'); });
+            uploadZone.addEventListener('dragleave', e => { e.preventDefault(); uploadZone.classList.remove('border-success'); });
+            uploadZone.addEventListener('drop', e => {
                 e.preventDefault();
-                uploadZone.classList.add('border-success', 'bg-light');
-            });
-            uploadZone.addEventListener('dragleave', function (e) {
-                e.preventDefault();
-                uploadZone.classList.remove('border-success', 'bg-light');
-            });
-            uploadZone.addEventListener('drop', function (e) {
-                e.preventDefault();
-                uploadZone.classList.remove('border-success', 'bg-light');
+                uploadZone.classList.remove('border-success');
                 const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleFileUpload(files[0]);
-                }
+                if (files.length > 0) handleFile(files[0]);
+            });
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) handleFile(this.files[0]);
             });
 
-            // 点击选择文件
-            fileInput.addEventListener('change', function () {
-                if (this.files.length > 0) {
-                    handleFileUpload(this.files[0]);
-                }
-            });
-
-            function handleFileUpload(file) {
-                // 检查文件类型
+            function handleFile(file) {
                 const ext = file.name.split('.').pop().toLowerCase();
-                if (!['md', 'txt'].includes(ext)) {
-                    alert('仅支持 .md 和 .txt 文件');
-                    return;
-                }
-                // 检查文件大小 (16MB)
-                if (file.size > 16 * 1024 * 1024) {
-                    alert('文件大小不能超过 16MB');
-                    return;
-                }
-
-                // 显示加载状态
-                const uploadContent = uploadZone.querySelector('.upload-content');
-                const uploadProgress = uploadZone.querySelector('.upload-progress');
-                uploadContent.classList.add('d-none');
-                uploadProgress.classList.remove('d-none');
-
-                // 读取文件内容
+                if (!['md', 'txt'].includes(ext)) { alert('仅支持 .md 和 .txt'); return; }
+                if (file.size > 16 * 1024 * 1024) { alert('文件大小不能超过 16MB'); return; }
                 const reader = new FileReader();
-                reader.onload = function (e) {
-                    const content = e.target.result;
-                    // 提取标题 (第一个 # 开头的行)
-                    let title = '';
-                    const lines = content.split('\n');
-                    for (const line of lines) {
-                        const stripped = line.trim();
-                        if (stripped.startsWith('#')) {
-                            title = stripped.replace(/^#+\s*/, '');
-                            break;
-                        }
+                reader.onload = e => {
+                    const text = e.target.result;
+                    // 提取首行 # 作为标题
+                    const lines = text.split('\n');
+                    let t = '';
+                    for (const ln of lines) {
+                        const s = ln.trim();
+                        if (s.startsWith('#')) { t = s.replace(/^#+\s*/, ''); break; }
                     }
-                    if (!title) {
-                        title = file.name.replace(/\.(md|txt)$/i, '');
-                    }
-
-                    // 填充表单
-                    document.getElementById('title').value = title;
-                    document.getElementById('content').value = content;
-                    document.getElementById('is_markdown').checked = true;
-
-                    // 更新计数器
-                    updateCount(titleEl, titleCounter, 200);
-                    updateCount(contentEl, contentCounter, null);
-
-                    // 隐藏上传区域
+                    if (!t) t = file.name.replace(/\.(md|txt)$/i, '');
+                    if (titleEl) titleEl.value = t;
+                    updateCount();
+                    if (easyMDE) easyMDE.value(text);
+                    else if (contentEl) contentEl.value = text;
                     uploadZone.classList.add('d-none');
-
-                    // 显示成功提示
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
-                    alertDiv.innerHTML = '<i class="bi bi-check-circle me-2"></i>文件已加载！请编辑后发布。<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-                    postForm.parentNode.insertBefore(alertDiv, postForm);
-
-                    // 自动聚焦到标题
-                    document.getElementById('title').focus();
-                };
-                reader.onerror = function () {
-                    alert('文件读取失败，请重试');
-                    uploadContent.classList.remove('d-none');
-                    uploadProgress.classList.add('d-none');
                 };
                 reader.readAsText(file);
             }
         }
-
-        // 标签切换功能
-        const selectedTags = new Set();
-        const tagsHidden = document.getElementById('tagsHidden');
-        const tagWrapper = document.getElementById('tagSelectedWrapper');
-
-        // 初始化已选标签
-        function initSelectedTags() {
-            const val = tagsHidden ? tagsHidden.value : '';
-            if (val) {
-                val.split(/[,，\s]+/).forEach(function(t) {
-                    if (t) selectedTags.add(t.trim());
-                });
-            }
-            renderSelectedTags();
-        }
-        initSelectedTags();
-
-        window.toggleTag = function(btn) {
-            const tag = btn.getAttribute('data-tag');
-            if (selectedTags.has(tag)) {
-                selectedTags.delete(tag);
-                btn.classList.remove('bg-primary', 'text-white');
-                btn.classList.add('bg-light', 'text-dark', 'border');
-            } else {
-                selectedTags.add(tag);
-                btn.classList.add('bg-primary', 'text-white');
-                btn.classList.remove('bg-light', 'text-dark', 'border');
-            }
-            updateHiddenInput();
-        };
-
-        function renderSelectedTags() {
-            if (!tagWrapper) return;
-            let html = '';
-            selectedTags.forEach(function(tag) {
-                html += '<span class="badge bg-primary me-1 mb-1">'+tag+' <i class="bi bi-x clickable" onclick="removeTag(\''+tag+'\')"></i></span>';
-            });
-            html += '<input type="hidden" name="tags" id="tagsHidden" value="'+Array.from(selectedTags).join(', ')+'">';
-            tagWrapper.innerHTML = html;
-        }
-
-        window.removeTag = function(tag) {
-            selectedTags.delete(tag);
-            // 取消列表中的选中状态
-            document.querySelectorAll('.tag-item').forEach(function(btn) {
-                if (btn.getAttribute('data-tag') === tag) {
-                    btn.classList.remove('bg-primary', 'text-white');
-                    btn.classList.add('bg-light', 'text-dark', 'border');
-                }
-            });
-            renderSelectedTags();
-        };
-
-        function updateHiddenInput() {
-            const hidden = document.getElementById('tagsHidden');
-            if (hidden) hidden.value = Array.from(selectedTags).join(', ');
-        }
-
-        window.showNewTagInput = function(btn) {
-            const newTag = prompt('输入新标签名称:');
-            if (newTag && newTag.trim()) {
-                const tagName = newTag.trim();
-                // 检查是否已存在
-                const exists = document.querySelector('.tag-item[data-tag="'+tagName+'"]');
-                if (exists) {
-                    toggleTag(exists);
-                } else {
-                    // 添加到已选
-                    selectedTags.add(tagName);
-                    renderSelectedTags();
-                    // 创建新标签按钮
-                    const container = btn.parentElement.querySelector('.border');
-                    const newBtn = document.createElement('button');
-                    newBtn.type = 'button';
-                    newBtn.className = 'badge bg-primary text-white me-1 mb-1 tag-item';
-                    newBtn.setAttribute('data-tag', tagName);
-                    newBtn.innerHTML = tagName+' <i class="bi bi-x ms-1"></i>';
-                    newBtn.onclick = function() { toggleTag(this); };
-                    container.appendChild(newBtn);
-                }
-            }
-        };
     })();
-</script>
 
-{# 分类管理模态框 #}
-<div class="modal fade" id="categoryModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-folder me-2 text-warning"></i>分类管理</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                {# 新建分类 #}
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control" id="newCategoryName" placeholder="新分类名称">
-                    <input type="text" class="form-control" id="newCategoryDesc" placeholder="描述(可选)">
-                    <button class="btn btn-primary" type="button" onclick="createCategory()">
-                        <i class="bi bi-plus-lg"></i>添加
-                    </button>
-                </div>
-                {# 分类列表 #}
-                <div class="list-group" id="categoryList" style="max-height: 300px; overflow-y: auto;">
-                    {% for cat in categories %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center" data-id="{{ cat.id }}">
-                        <div class="flex-grow-1">
-                            <span class="category-name">{{ cat.name }}</span>
-                            {% if cat.description %}<small class="text-muted ms-2">{{ cat.description }}</small>{% endif %}
-                        </div>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary" onclick="editCategory({{ cat.id }}, '{{ cat.name }}', '{{ cat.description or '' }}')">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger" onclick="deleteCategory({{ cat.id }})">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-{# 分类编辑模态框 #}
-<div class="modal fade" id="categoryEditModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">编辑分类</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editCategoryId">
-                <div class="mb-2">
-                    <input type="text" class="form-control" id="editCategoryName" placeholder="分类名称">
-                </div>
-                <div class="mb-2">
-                    <input type="text" class="form-control" id="editCategoryDesc" placeholder="描述(可选)">
-                </div>
-                <button class="btn btn-primary w-100" onclick="saveCategory()">保存</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-{# 标签管理模态框 #}
-<div class="modal fade" id="tagModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-tags me-2 text-info"></i>标签管理</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                {# 新建标签 #}
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control" id="newTagName" placeholder="新标签名称">
-                    <button class="btn btn-primary" type="button" onclick="createTag()">
-                        <i class="bi bi-plus-lg"></i>添加
-                    </button>
-                </div>
-                {# 标签列表 #}
-                <div class="list-group" id="tagList" style="max-height: 300px; overflow-y: auto;">
-                    {% for tag in all_tags %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center" data-tag="{{ tag.name }}">
-                        <div class="flex-grow-1">
-                            <span class="tag-name">{{ tag.name }}</span>
-                        </div>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary" onclick="editTag('{{ tag.name }}')">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger" onclick="deleteTag('{{ tag.name }}')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-{# 标签编辑模态框 #}
-<div class="modal fade" id="tagEditModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">编辑标签</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="editTagOldName">
-                <div class="mb-2">
-                    <input type="text" class="form-control" id="editTagName" placeholder="标签名称">
-                </div>
-                <button class="btn btn-primary w-100" onclick="saveTag()">保存</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-// 分类管理函数
-function createCategory() {
-    const name = document.getElementById('newCategoryName').value.trim();
-    const desc = document.getElementById('newCategoryDesc').value.trim();
-    if (!name) { alert('请输入分类名称'); return; }
-    fetch('{{ url_for("category.api_create") }}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({name: name, description: desc})
-    }).then(r => r.json()).then(data => {
-        if (data.id) {
-            // 添加到下拉框
-            const select = document.getElementById('category_id');
-            const opt = new Option(name + (desc ? ' - '+desc : ''), data.id, false, true);
-            select.add(opt);
-            // 添加到列表
-            const list = document.getElementById('categoryList');
-            list.insertAdjacentHTML('beforeend', '<div class="list-group-item d-flex justify-content-between align-items-center" data-id="'+data.id+'"><div class="flex-grow-1"><span class="category-name">'+name+'</span>'+(desc?' <small class="text-muted ms-2">'+desc+'</small>':'')+'</div><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" onclick="editCategory('+data.id+',\''+name+'\',\''+desc+'\')"><i class="bi bi-pencil"></i></button><button class="btn btn-outline-danger" onclick="deleteCategory('+data.id+')"><i class="bi bi-trash"></i></button></div></div>');
-            document.getElementById('newCategoryName').value = '';
-            document.getElementById('newCategoryDesc').value = '';
-        } else {
-            alert(data.error || '创建失败');
-        }
+    // 标签自动补全
+    document.querySelectorAll('.tag-suggestion').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tagsInput = document.getElementById('tags');
+            if (!tagsInput) return;
+            const tag = btn.getAttribute('data-tag');
+            const cur = tagsInput.value.trim();
+            const list = cur ? cur.split(/[,，\s]+/) : [];
+            if (list.includes(tag)) return;
+            tagsInput.value = cur ? (cur + ', ' + tag) : tag;
+        });
     });
-}
-
-function editCategory(id, name, desc) {
-    document.getElementById('editCategoryId').value = id;
-    document.getElementById('editCategoryName').value = name;
-    document.getElementById('editCategoryDesc').value = desc;
-    new bootstrap.Modal(document.getElementById('categoryEditModal')).show();
-}
-
-function saveCategory() {
-    const id = document.getElementById('editCategoryId').value;
-    const name = document.getElementById('editCategoryName').value.trim();
-    const desc = document.getElementById('editCategoryDesc').value.trim();
-    if (!name) { alert('请输入分类名称'); return; }
-    fetch('{{ url_for("category.api_update", cat_id=0) }}'.replace('/0', '/'+id), {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({name: name, description: desc})
-    }).then(r => r.json()).then(data => {
-        if (data.success) {
-            // 更新列表
-            const item = document.querySelector('.list-group-item[data-id="'+id+'"]');
-            if (item) {
-                item.querySelector('.category-name').textContent = name;
-                const descEl = item.querySelector('.text-muted');
-                if (descEl) descEl.textContent = desc ? ' - '+desc : '';
-                else if (desc) item.querySelector('.flex-grow-1').insertAdjacentHTML('beforeend', ' <small class="text-muted ms-2">'+desc+'</small>');
-            }
-            // 更新下拉框
-            const select = document.getElementById('category_id');
-            for (let i = 0; i < select.options.length; i++) {
-                if (select.options[i].value == id) {
-                    select.options[i].text = name + (desc ? ' - '+desc : '');
-                    break;
-                }
-            }
-            bootstrap.Modal.getInstance(document.getElementById('categoryEditModal')).hide();
-        } else {
-            alert(data.error || '保存失败');
-        }
-    });
-}
-
-function deleteCategory(id) {
-    if (!confirm('确定要删除此分类吗?')) return;
-    fetch('{{ url_for("category.api_delete", cat_id=0) }}'.replace('/0', '/'+id), {
-        method: 'DELETE',
-        headers: {'X-CSRFToken': '{{ csrf_token() }}'}
-    }).then(r => r.json()).then(data => {
-        if (data.success) {
-            document.querySelector('.list-group-item[data-id="'+id+'"]').remove();
-            const select = document.getElementById('category_id');
-            for (let i = 0; i < select.options.length; i++) {
-                if (select.options[i].value == id) { select.remove(i); break; }
-            }
-        } else {
-            alert(data.error || '删除失败');
-        }
-    });
-}
-
-// 标签管理函数
-function createTag() {
-    const name = document.getElementById('newTagName').value.trim();
-    if (!name) { alert('请输入标签名称'); return; }
-    fetch('{{ url_for("category.api_create_tag") }}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({name: name})
-    }).then(r => r.json()).then(data => {
-        if (data.id || data.success) {
-            // 添加到列表
-            const list = document.getElementById('tagList');
-            const tagName = data.name || name;
-            list.insertAdjacentHTML('beforeend', '<div class="list-group-item d-flex justify-content-between align-items-center" data-tag="'+tagName+'"><div class="flex-grow-1"><span class="tag-name">'+tagName+'</span></div><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" onclick="editTag(\''+tagName+'\')"><i class="bi bi-pencil"></i></button><button class="btn btn-outline-danger" onclick="deleteTag(\''+tagName+'\')"><i class="bi bi-trash"></i></button></div></div>');
-            // 添加到选择区
-            const container = document.getElementById('tagListContainer');
-            if (container.querySelector('.text-muted')) container.innerHTML = '';
-            container.insertAdjacentHTML('beforeend', '<button type="button" class="badge tag-item bg-light text-dark border me-1 mb-1" data-tag="'+tagName+'" onclick="toggleTag(this)">'+tagName+'</button>');
-            document.getElementById('newTagName').value = '';
-        } else {
-            alert(data.error || '创建失败');
-        }
-    });
-}
-
-function editTag(name) {
-    document.getElementById('editTagOldName').value = name;
-    document.getElementById('editTagName').value = name;
-    new bootstrap.Modal(document.getElementById('tagEditModal')).show();
-}
-
-function saveTag() {
-    const oldName = document.getElementById('editTagOldName').value;
-    const newName = document.getElementById('editTagName').value.trim();
-    if (!newName) { alert('请输入标签名称'); return; }
-    const baseUrl = '{{ url_for("category.api_update_tag") }}';
-    fetch(baseUrl + '?old=' + encodeURIComponent(oldName), {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({name: newName})
-    }).then(r => r.json()).then(data => {
-        if (data.success) {
-            // 更新列表
-            const item = document.querySelector('.list-group-item[data-tag="'+oldName+'"]');
-            if (item) {
-                item.setAttribute('data-tag', newName);
-                item.querySelector('.tag-name').textContent = newName;
-                item.querySelector('.btn-outline-secondary').setAttribute('onclick', "editTag('"+newName+"')");
-                item.querySelector('.btn-outline-danger').setAttribute('onclick', "deleteTag('"+newName+"')");
-            }
-            // 更新选择区
-            document.querySelectorAll('.tag-item[data-tag="'+oldName+'"]').forEach(function(btn) {
-                btn.setAttribute('data-tag', newName);
-                btn.textContent = newName;
-            });
-            bootstrap.Modal.getInstance(document.getElementById('tagEditModal')).hide();
-        } else {
-            alert(data.error || '保存失败');
-        }
-    });
-}
-
-function deleteTag(name) {
-    if (!confirm('确定要删除标签 "'+name+'" 吗?')) return;
-    fetch('{{ url_for("blog.api_delete_tag") }}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-        body: JSON.stringify({name: name})
-    }).then(r => r.json()).then(data => {
-        if (data.success) {
-            document.querySelector('.list-group-item[data-tag="'+name+'"]').remove();
-            document.querySelectorAll('.tag-item[data-tag="'+name+'"]').forEach(function(btn) { btn.remove(); });
-        } else {
-            alert(data.error || '删除失败');
-        }
-    });
-}
 </script>
 {% endblock %}

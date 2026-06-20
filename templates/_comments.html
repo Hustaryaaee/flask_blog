@@ -1,0 +1,73 @@
+{# 阶段3: 评论子模板 #}
+<section id="comments" class="mt-5">
+    <h3 class="h4 fw-bold mb-3">
+        <i class="bi bi-chat-left-text me-2 text-primary"></i>评论
+        <span class="badge bg-secondary">{{ comment_count }}</span>
+    </h3>
+
+    {# 评论表单 #}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('comment.create', post_id=post.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="parent_id" id="parentIdInput" value="">
+
+                {% if current_user.is_authenticated %}
+                    <div class="d-flex align-items-center mb-2">
+                        <img src="{{ current_user.avatar() }}" alt="" width="32" height="32" class="rounded-circle me-2">
+                        <span>以 <strong>{{ current_user.username }}</strong> 身份评论</span>
+                        <span id="replyHint" class="ms-auto small text-muted d-none">
+                            回复给 <strong id="replyTarget"></strong>
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1" onclick="cancelReply()">取消</button>
+                        </span>
+                    </div>
+                {% else %}
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <input type="text" name="guest_name" class="form-control" required minlength="2" maxlength="30"
+                                   placeholder="昵称 (2-30字符)">
+                        </div>
+                        <div class="col-md-6">
+                            <input type="email" name="guest_email" class="form-control"
+                                   placeholder="邮箱（可选，不公开）">
+                        </div>
+                    </div>
+                {% endif %}
+
+                <textarea name="content" class="form-control mb-2" rows="3" required minlength="2" maxlength="2000"
+                          placeholder="写下你的看法…（支持 Markdown，纯文本将自动转义）"></textarea>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">含链接的评论将进入待审核</small>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send me-1"></i>发表
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# 评论列表 #}
+    {% if top_comments and top_comments|length > 0 %}
+        <div class="comments-list">
+            {% for c in top_comments %}
+                {% include "_comment_item.html" %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">还没有评论，来抢沙发吧～</p>
+    {% endif %}
+</section>
+
+<script>
+function replyTo(commentId, name) {
+    document.getElementById('parentIdInput').value = commentId;
+    document.getElementById('replyTarget').textContent = name;
+    document.getElementById('replyHint').classList.remove('d-none');
+    document.querySelector('#comments form textarea').focus();
+}
+function cancelReply() {
+    document.getElementById('parentIdInput').value = '';
+    document.getElementById('replyHint').classList.add('d-none');
+}
+</script>

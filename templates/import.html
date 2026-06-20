@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}导入 Markdown{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('blog.index') }}" class="text-decoration-none"><i class="bi bi-house-door me-1"></i>首页</a></li>
+                <li class="breadcrumb-item active" aria-current="page">导入 Markdown</li>
+            </ol>
+        </nav>
+
+        <header class="page-header mb-4 pb-3 border-bottom">
+            <h1 class="h3 fw-bold mb-2"><i class="bi bi-upload me-2 text-primary"></i>导入 Markdown</h1>
+            <p class="text-muted mb-0">支持 YAML front-matter 解析（title / tags / cover_image / excerpt / status）</p>
+        </header>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">选择文件</label>
+                        <input type="file" name="file" accept=".md,.markdown,.txt" class="form-control" required>
+                        <div class="form-text">最大 16MB；支持 .md / .markdown / .txt</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-cloud-upload me-1"></i>上传并预填
+                    </button>
+                    <a href="{{ url_for('blog.create') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-lg me-1"></i>取消
+                    </a>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4 border-info">
+            <div class="card-header bg-info-subtle">
+                <i class="bi bi-lightbulb me-1"></i>支持的 Front-matter 示例
+            </div>
+            <div class="card-body">
+                <pre class="mb-0"><code>---
+title: "文章标题"
+tags: [Python, Flask]
+cover_image: "https://..."
+excerpt: "摘要"
+status: "published"
+---
+正文内容...</code></pre>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

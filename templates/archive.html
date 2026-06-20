@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}文章归档{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-9 mx-auto">
+
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('blog.index') }}" class="text-decoration-none"><i class="bi bi-house-door me-1"></i>首页</a></li>
+                <li class="breadcrumb-item active" aria-current="page">归档</li>
+            </ol>
+        </nav>
+
+        <header class="page-header mb-4 pb-3 border-bottom">
+            <h1 class="h3 fw-bold mb-2"><i class="bi bi-archive me-2 text-primary"></i>文章归档</h1>
+            <p class="text-muted mb-0">共 <strong>{{ total }}</strong> 篇已发布文章，按发布时间倒序排列</p>
+        </header>
+
+        {% if archive|length == 0 %}
+            <div class="alert alert-info"><i class="bi bi-info-circle me-1"></i>还没有任何已发布文章</div>
+        {% else %}
+            {% for grp in archive %}
+            <section class="archive-group mb-4">
+                <h2 class="h5 mb-3 text-primary">
+                    <i class="bi bi-calendar3 me-2"></i>{{ grp.label }}
+                    <span class="badge bg-secondary ms-2">{{ grp.posts|length }}</span>
+                </h2>
+                <ul class="list-group">
+                    {% for p in grp.posts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <a href="{{ url_for('blog.detail', slug=p.slug) }}" class="text-decoration-none fw-semibold">
+                                {{ p.title }}
+                            </a>
+                            {% if p.excerpt %}
+                                <div class="small text-muted mt-1">{{ p.excerpt[:120] }}{% if p.excerpt|length > 120 %}…{% endif %}</div>
+                            {% endif %}
+                            {% if p.tags %}
+                            <div class="mt-1">
+                                {% for t in p.tags %}
+                                <span class="badge bg-light text-secondary border me-1"><i class="bi bi-tag-fill me-1"></i>{{ t.name }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <span class="text-muted small text-nowrap">
+                            <i class="bi bi-clock me-1"></i>
+                            {{ (p.published_at or p.created_at).strftime('%m-%d') if (p.published_at or p.created_at) }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% endfor %}
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

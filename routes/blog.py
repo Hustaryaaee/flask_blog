@@ -8,9 +8,10 @@ from datetime import datetime
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, abort
 )
+from flask_login import login_required, current_user
 from urllib.parse import unquote
 
-from models import db, Post, Category, Tag
+from models import db, Post, Category, Tag, PostHistory
 
 # 创建博客蓝图
 blog_bp = Blueprint('blog', __name__)
@@ -96,25 +97,159 @@ def _get_or_create_tags(tag_names):
     return result
 
 
+# ----------------------------- 工具: 阶段2 -----------------------------
+
+def _parse_published_at(raw: str):
+    """解析前端提交的发布时间；为空表示立即"""
+    if not raw:
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    # 支持 datetime-local 格式 YYYY-MM-DDTHH:MM
+    for fmt in ('%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S'):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _save_history(post: Post, note: str = None) -> None:
+    """保存一版历史快照（创建时不保存，仅编辑时留痕）"""
+    hist = PostHistory(
+        post_id=post.id,
+        revision=post.revision,
+        title=post.title,
+        content=post.content,
+        excerpt=post.excerpt,
+        cover_image=post.cover_image,
+        saved_by_id=current_user.id if current_user.is_authenticated else None,
+        note=note or None,
+    )
+    db.session.add(hist)
+
+
 # ----------------------------- 路由视图 -----------------------------
 
 @blog_bp.route('/', methods=['GET'])
 def index():
     """
     GET /
-    文章列表页：按创建时间倒序展示所有文章（分页）
+    文章列表页：仅展示可见文章（已发布 + 到达发布时间）
+    作者/管理员可见自己的草稿、归档、定时文章
     """
     page = request.args.get('page', 1, type=int)
-    pagination = (
-        Post.query
-        .order_by(Post.created_at.desc())
-        .paginate(page=page, per_page=10, error_out=False)
+    q_str = request.args.get('q', '').strip()
+    q = Post.query
+    if not (current_user.is_authenticated):
+        q = q.filter(Post.status == Post.STATUS_PUBLISHED)
+        q = q.filter(
+            (Post.published_at.is_(None)) | (Post.published_at <= datetime.utcnow())
+        )
+    # 已登录用户：额外展示自己的非公开内容
+    if current_user.is_authenticated and not current_user.is_admin():
+        from sqlalchemy import or_, and_
+        q = q.filter(or_(
+            and_(Post.status == Post.STATUS_PUBLISHED,
+                 or_(Post.published_at.is_(None), Post.published_at <= datetime.utcnow())),
+            Post.author_id == current_user.id,
+        ))
+
+    # 阶段3: 关键词搜索（标题或内容）
+    if q_str:
+        like = f'%{q_str}%'
+        q = q.filter((Post.title.ilike(like)) | (Post.content.ilike(like)))
+
+    pagination = q.order_by(Post.published_at.desc().nullslast(), Post.created_at.desc()).paginate(
+        page=page, per_page=10, error_out=False
     )
     return render_template(
         'index.html',
         posts=pagination.items,
         pagination=pagination,
+        q=q_str,
     )
+
+
+@blog_bp.route('/search', methods=['GET'])
+def search():
+    """
+    GET /search?q=xxx
+    阶段3: 全文检索页（带高亮）
+    """
+    from models import Comment
+    q_str = request.args.get('q', '').strip()
+    page = request.args.get('page', 1, type=int)
+    results = []
+    pagination = None
+
+    if q_str:
+        like = f'%{q_str}%'
+        query = Post.query.filter(Post.status == Post.STATUS_PUBLISHED).filter(
+            (Post.title.ilike(like)) | (Post.content.ilike(like)) |
+            (Post.excerpt.ilike(like))
+        ).order_by(Post.published_at.desc().nullslast(), Post.created_at.desc())
+        pagination = query.paginate(page=page, per_page=10, error_out=False)
+
+        def _snippet(content, q_str, length=180):
+            plain = re.sub(r'<[^>]+>', ' ', content or '')
+            plain = re.sub(r'\s+', ' ', plain).strip()
+            pos = plain.lower().find(q_str.lower())
+            if pos < 0:
+                return plain[:length] + ('...' if len(plain) > length else '')
+            start = max(0, pos - 60)
+            end = min(len(plain), pos + len(q_str) + 120)
+            return ('...' if start > 0 else '') + plain[start:end] + ('...' if end < len(plain) else '')
+
+        for p in pagination.items:
+            results.append({
+                'post': p,
+                'snippet': _snippet(p.content, q_str),
+            })
+
+    return render_template('search.html', q=q_str, results=results, pagination=pagination)
+
+
+@blog_bp.route('/archive', methods=['GET'])
+def archive():
+    """
+    GET /archive
+    阶段5: 按年月归档所有可见文章
+    """
+    from sqlalchemy import extract
+    from collections import defaultdict
+    # 公开可见的文章
+    q = Post.query.filter(Post.status == Post.STATUS_PUBLISHED).filter(
+        (Post.published_at.is_(None)) | (Post.published_at <= datetime.utcnow())
+    )
+    if current_user.is_authenticated and not current_user.is_admin():
+        from sqlalchemy import or_, and_
+        q = q.filter(or_(
+            Post.author_id == current_user.id,
+            Post.status == Post.STATUS_PUBLISHED,
+        ))
+
+    posts = q.order_by(
+        Post.published_at.desc().nullslast(),
+        Post.created_at.desc(),
+    ).all()
+
+    # 按年月分组
+    grouped = defaultdict(list)
+    total = len(posts)
+    for p in posts:
+        dt = p.published_at or p.created_at
+        key = (dt.year, dt.month)
+        grouped[key].append(p)
+
+    # 转 (key, label, posts) 列表
+    archive_data = []
+    for (y, m), items in sorted(grouped.items(), key=lambda x: x[0], reverse=True):
+        label = f'{y} 年 {m:02d} 月'
+        archive_data.append({'year': y, 'month': m, 'label': label, 'posts': items})
+
+    return render_template('archive.html', archive=archive_data, total=total)
 
 
 @blog_bp.route('/post/<string:slug>', methods=['GET'])
@@ -124,10 +259,69 @@ def detail(slug):
     文章详情页
     """
     post = Post.query.filter_by(slug=slug).first_or_404()
-    return render_template('post.html', post=post)
+
+    # 可见性：草稿 / 定时 / 归档 仅作者或管理员可见
+    if not post.is_visible():
+        if not (current_user.is_authenticated and (
+                post.author_id == current_user.id or current_user.is_admin()
+        )):
+            abort(404)
+
+    # 浏览计数（同一会话内不重复计数）
+    if post.is_visible():
+        from flask import session as _session
+        seen_key = f'seen_post_{post.id}'
+        if not _session.get(seen_key):
+            _session[seen_key] = True
+            post.view_count = (post.view_count or 0) + 1
+            db.session.commit()
+
+    # 阶段3: 评论（仅展示已通过审核的；管理员可看全部）
+    from models import Comment
+    visible_status = [Comment.STATUS_APPROVED]
+    if current_user.is_authenticated and (current_user.is_admin() or post.author_id == current_user.id):
+        visible_status.append(Comment.STATUS_PENDING)
+
+    top_comments = (
+        Comment.query
+        .filter(
+            Comment.post_id == post.id,
+            Comment.parent_id.is_(None),
+            Comment.status.in_(visible_status),
+        )
+        .order_by(Comment.created_at.asc())
+        .all()
+    )
+    # 把每条顶级评论的回复也取出
+    all_replies = (
+        Comment.query
+        .filter(
+            Comment.post_id == post.id,
+            Comment.parent_id.isnot(None),
+            Comment.status.in_(visible_status),
+        )
+        .order_by(Comment.created_at.asc())
+        .all()
+    )
+    replies_map = {}
+    for r in all_replies:
+        replies_map.setdefault(r.parent_id, []).append(r)
+    comment_count = len(top_comments) + len(all_replies)
+
+    # 阶段3: 搜索关键词高亮
+    q = request.args.get('q', '').strip()
+
+    return render_template(
+        'post.html', post=post,
+        top_comments=top_comments,
+        replies_map=replies_map,
+        comment_count=comment_count,
+        q=q,
+    )
 
 
 @blog_bp.route('/create', methods=['GET', 'POST'])
+@login_required
 def create():
     """
     GET  /create  - 显示创建文章表单
@@ -143,6 +337,17 @@ def create():
         tag_names = _parse_tag_names(request.form.get('tags', ''))
         is_markdown = request.form.get('is_markdown') in ('1', 'on', 'true')
 
+        # 阶段2字段
+        status = request.form.get('status') or Post.STATUS_PUBLISHED
+        if status not in Post.STATUS_CHOICES:
+            status = Post.STATUS_PUBLISHED
+        cover_image = (request.form.get('cover_image') or '').strip() or None
+        excerpt = (request.form.get('excerpt') or '').strip() or None
+        seo_title = (request.form.get('seo_title') or '').strip() or None
+        seo_description = (request.form.get('seo_description') or '').strip() or None
+        seo_keywords = (request.form.get('seo_keywords') or '').strip() or None
+        published_at = _parse_published_at(request.form.get('published_at', ''))
+
         # 基础校验
         if not title or not content:
             flash('标题和内容不能为空', 'error')
@@ -151,6 +356,11 @@ def create():
                 title=title, content=content,
                 category_id=category_id, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
+                status=status, cover_image=cover_image, excerpt=excerpt,
+                seo_title=seo_title, seo_description=seo_description,
+                seo_keywords=seo_keywords,
+                published_at=request.form.get('published_at', ''),
+                STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
         if len(title) > 200:
@@ -160,6 +370,11 @@ def create():
                 title=title, content=content,
                 category_id=category_id, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
+                status=status, cover_image=cover_image, excerpt=excerpt,
+                seo_title=seo_title, seo_description=seo_description,
+                seo_keywords=seo_keywords,
+                published_at=request.form.get('published_at', ''),
+                STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
         # 校验分类
@@ -173,7 +388,27 @@ def create():
                     title=title, content=content,
                     category_id=category_id, tags_raw=request.form.get('tags', ''),
                     categories=categories, all_tags=all_tags,
+                    status=status, cover_image=cover_image, excerpt=excerpt,
+                    seo_title=seo_title, seo_description=seo_description,
+                    seo_keywords=seo_keywords,
+                    published_at=request.form.get('published_at', ''),
+                    STATUS_CHOICES=Post.STATUS_CHOICES,
                 )
+
+        # 校验状态权限：仅 admin 可发布归档，普通用户只能草稿/定时/发布
+        if status == Post.STATUS_ARCHIVED and not current_user.is_admin():
+            flash('只有管理员可设置归档状态', 'error')
+            return render_template(
+                'create.html',
+                title=title, content=content,
+                category_id=category_id, tags_raw=request.form.get('tags', ''),
+                categories=categories, all_tags=all_tags,
+                status=Post.STATUS_PUBLISHED, cover_image=cover_image, excerpt=excerpt,
+                seo_title=seo_title, seo_description=seo_description,
+                seo_keywords=seo_keywords,
+                published_at=request.form.get('published_at', ''),
+                STATUS_CHOICES=Post.STATUS_CHOICES,
+            )
 
         # 构造模型
         post = Post(
@@ -182,6 +417,15 @@ def create():
             slug=_generate_unique_slug(title),
             is_markdown=is_markdown,
             category_id=category.id if category else None,
+            author_id=current_user.id,
+            status=status,
+            cover_image=cover_image,
+            excerpt=excerpt,
+            seo_title=seo_title,
+            seo_description=seo_description,
+            seo_keywords=seo_keywords,
+            published_at=published_at,
+            revision=1,
         )
         # 处理标签
         post.tags = _get_or_create_tags(tag_names)
@@ -199,6 +443,11 @@ def create():
                 title=title, content=content,
                 category_id=category_id, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
+                status=status, cover_image=cover_image, excerpt=excerpt,
+                seo_title=seo_title, seo_description=seo_description,
+                seo_keywords=seo_keywords,
+                published_at=request.form.get('published_at', ''),
+                STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
     # GET 请求，渲染空表单 - 支持从 URL 参数预填 (来自 upload 等场景)
@@ -206,6 +455,9 @@ def create():
     prefill_title = unquote(request.args.get('title', '')).strip()
     prefill_content = unquote(request.args.get('content', ''))
     prefill_is_markdown = request.args.get('is_markdown', '') in ('1', 'true')
+    prefill_cover = unquote(request.args.get('cover_image', '')).strip() or None
+    prefill_excerpt = unquote(request.args.get('excerpt', '')).strip() or None
+    prefill_tags = unquote(request.args.get('tags', '')).strip()
 
     if prefill_content:
         flash('已从上传文件预填内容,请编辑后发布', 'info')
@@ -215,17 +467,31 @@ def create():
         title=prefill_title,
         content=prefill_content,
         is_markdown=prefill_is_markdown,
+        tags_raw=prefill_tags,
         categories=categories, all_tags=all_tags,
+        status=Post.STATUS_PUBLISHED,
+        cover_image=prefill_cover,
+        excerpt=prefill_excerpt,
+        seo_title=None, seo_description=None, seo_keywords=None,
+        published_at='',
+        STATUS_CHOICES=Post.STATUS_CHOICES,
     )
 
 
 @blog_bp.route('/edit/<int:post_id>', methods=['GET', 'POST'])
+@login_required
 def edit(post_id):
     """
     GET  /edit/<id>  - 显示编辑表单
     POST /edit/<id>  - 提交编辑
     """
     post = Post.query.get_or_404(post_id)
+
+    # 权限校验：仅作者本人或管理员可编辑
+    if post.author_id and post.author_id != current_user.id and not current_user.is_admin():
+        flash('没有权限编辑该文章', 'error')
+        return redirect(url_for('blog.detail', slug=post.slug))
+
     categories = Category.query.order_by(Category.name.asc()).all()
     all_tags = Tag.query.order_by(Tag.name.asc()).all()
 
@@ -236,11 +502,26 @@ def edit(post_id):
         tag_names = _parse_tag_names(request.form.get('tags', ''))
         is_markdown = request.form.get('is_markdown') in ('1', 'on', 'true')
 
+        # 阶段2字段
+        new_status = request.form.get('status') or post.status
+        if new_status not in Post.STATUS_CHOICES:
+            new_status = post.status
+        if new_status == Post.STATUS_ARCHIVED and not current_user.is_admin():
+            flash('只有管理员可设置归档状态', 'error')
+            new_status = post.status
+        cover_image = (request.form.get('cover_image') or '').strip() or None
+        excerpt = (request.form.get('excerpt') or '').strip() or None
+        seo_title = (request.form.get('seo_title') or '').strip() or None
+        seo_description = (request.form.get('seo_description') or '').strip() or None
+        seo_keywords = (request.form.get('seo_keywords') or '').strip() or None
+        published_at = _parse_published_at(request.form.get('published_at', ''))
+
         if not title or not content:
             flash('标题和内容不能为空', 'error')
             return render_template(
                 'edit.html', post=post,
                 categories=categories, all_tags=all_tags,
+                STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
         if len(title) > 200:
@@ -248,6 +529,7 @@ def edit(post_id):
             return render_template(
                 'edit.html', post=post,
                 categories=categories, all_tags=all_tags,
+                STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
         # 校验分类
@@ -259,7 +541,11 @@ def edit(post_id):
                 return render_template(
                     'edit.html', post=post,
                     categories=categories, all_tags=all_tags,
+                    STATUS_CHOICES=Post.STATUS_CHOICES,
                 )
+
+        # 保存历史快照（编辑前）
+        _save_history(post, note=(request.form.get('revision_note') or '').strip() or None)
 
         # 若标题变化则重新生成 slug
         if title != post.title:
@@ -268,12 +554,20 @@ def edit(post_id):
         post.content = content
         post.is_markdown = is_markdown
         post.category_id = category.id if category else None
+        post.status = new_status
+        post.cover_image = cover_image
+        post.excerpt = excerpt
+        post.seo_title = seo_title
+        post.seo_description = seo_description
+        post.seo_keywords = seo_keywords
+        post.published_at = published_at
+        post.revision = (post.revision or 1) + 1
         # 重新绑定标签
         post.tags = _get_or_create_tags(tag_names)
 
         try:
             db.session.commit()
-            flash('文章更新成功', 'success')
+            flash(f'文章已更新至 v{post.revision}', 'success')
             return redirect(url_for('blog.detail', slug=post.slug))
         except Exception as exc:  # noqa: BLE001
             db.session.rollback()
@@ -281,22 +575,30 @@ def edit(post_id):
             return render_template(
                 'edit.html', post=post,
                 categories=categories, all_tags=all_tags,
+                STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
     # GET 请求，渲染已有数据的表单
     return render_template(
         'edit.html', post=post,
         categories=categories, all_tags=all_tags,
+        STATUS_CHOICES=Post.STATUS_CHOICES,
     )
 
 
 @blog_bp.route('/delete/<int:post_id>', methods=['POST'])
+@login_required
 def delete(post_id):
     """
     POST /delete/<id>
     删除文章（仅接受 POST，避免误删）
     """
     post = Post.query.get_or_404(post_id)
+
+    # 权限校验：仅作者本人或管理员可删除
+    if post.author_id and post.author_id != current_user.id and not current_user.is_admin():
+        flash('没有权限删除该文章', 'error')
+        return redirect(url_for('blog.detail', slug=post.slug))
 
     try:
         db.session.delete(post)
@@ -307,6 +609,57 @@ def delete(post_id):
         flash(f'删除失败: {exc}', 'error')
 
     return redirect(url_for('blog.index'))
+
+
+@blog_bp.route('/post/<int:post_id>/history', methods=['GET'])
+@login_required
+def history(post_id):
+    """
+    GET /post/<id>/history - 查看版本历史
+    """
+    post = Post.query.get_or_404(post_id)
+    if post.author_id and post.author_id != current_user.id and not current_user.is_admin():
+        flash('没有权限查看该文章历史', 'error')
+        return redirect(url_for('blog.detail', slug=post.slug))
+    histories = post.histories.limit(50).all()
+    return render_template('history.html', post=post, histories=histories)
+
+
+@blog_bp.route('/post/<int:post_id>/history/<int:revision>/restore', methods=['POST'])
+@login_required
+def restore_history(post_id, revision):
+    """
+    POST /post/<id>/history/<rev>/restore - 回滚到指定版本
+    """
+    post = Post.query.get_or_404(post_id)
+    if post.author_id and post.author_id != current_user.id and not current_user.is_admin():
+        flash('没有权限回滚该文章', 'error')
+        return redirect(url_for('blog.detail', slug=post.slug))
+
+    hist = PostHistory.query.filter_by(post_id=post.id, revision=revision).first_or_404()
+
+    # 备份当前到历史
+    _save_history(post, note=f'回滚前自动备份')
+
+    # 恢复字段
+    post.title = hist.title
+    post.content = hist.content
+    post.excerpt = hist.excerpt
+    post.cover_image = hist.cover_image
+    post.slug = _generate_unique_slug(hist.title, exclude_post_id=post.id)
+    post.revision = (post.revision or 1) + 1
+    # 标签按历史快照中的名字恢复（PostHistory 不存 tags，需要从快照字段读取）
+    # 当前模型没有 history.tags 字段 → 从 content 解析 #tag 形式作为兜底
+    fallback_tag_names = re.findall(r'#([\w\-\u4e00-\u9fa5]{1,30})', hist.content or '')
+    post.tags = _get_or_create_tags(fallback_tag_names)
+
+    try:
+        db.session.commit()
+        flash(f'已回滚到 v{revision}（当前 v{post.revision}）', 'success')
+    except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
+        flash(f'回滚失败: {exc}', 'error')
+    return redirect(url_for('blog.edit', post_id=post.id))
 
 
 # ----------------------------- 错误处理 -----------------------------

@@ -2,9 +2,18 @@
 
 {% import "macros.html" as ui %}
 
-{% block title %}{{ post.title }}{% endblock %}
+{% block title %}{{ post.effective_seo_title }}{% endblock %}
 
-{% block description %}{{ post.content[:160] }}{% endblock %}
+{% block description %}{{ post.effective_seo_description }}{% endblock %}
+
+{% block extra_head %}
+<meta name="description" content="{{ post.effective_seo_description }}">
+<meta name="keywords" content="{{ post.effective_seo_keywords }}">
+<meta property="og:title" content="{{ post.effective_seo_title }}">
+<meta property="og:description" content="{{ post.effective_seo_description }}">
+<meta property="og:type" content="article">
+{% if post.cover_image %}<meta property="og:image" content="{{ post.cover_image }}">{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -33,27 +42,78 @@
         {# 文章卡片 #}
         <article class="post-detail card shadow-sm">
 
+            {# 阶段2: 状态徽章（非已发布）#}
+            {% if post.status != post.STATUS_PUBLISHED or not post.is_visible %}
+            <div class="card-header bg-warning-subtle border-bottom">
+                <div class="d-flex align-items-center">
+                    {% if post.status == post.STATUS_DRAFT %}
+                        <i class="bi bi-pencil-fill text-warning me-2"></i>
+                        <span class="fw-semibold">草稿</span>
+                    {% elif post.status == post.STATUS_SCHEDULED %}
+                        <i class="bi bi-clock-fill text-info me-2"></i>
+                        <span class="fw-semibold">定时发布：</span>
+                        <span class="ms-1">{{ post.published_at.strftime('%Y-%m-%d %H:%M') if post.published_at }}</span>
+                    {% elif post.status == post.STATUS_ARCHIVED %}
+                        <i class="bi bi-archive-fill text-secondary me-2"></i>
+                        <span class="fw-semibold">已归档</span>
+                    {% elif post.published_at and post.published_at > now %}
+                        <i class="bi bi-clock-fill text-info me-2"></i>
+                        <span class="fw-semibold">将于 {{ post.published_at.strftime('%Y-%m-%d %H:%M') }} 发布</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# 阶段2: 封面图 #}
+            {% if post.cover_image %}
+            <div class="post-cover">
+                <img src="{{ post.cover_image }}" alt="{{ post.title }}" class="img-fluid w-100" style="max-height: 380px; object-fit: cover;">
+            </div>
+            {% endif %}
+
             {# 文章头部 #}
             <header class="card-header bg-white border-0 pt-4 pb-3">
                 <h1 class="post-title display-6 fw-bold mb-3">{{ post.title }}</h1>
 
-                <div class="post-meta text-muted small">
-                    <i class="bi bi-calendar3 me-1"></i>
-                    <time datetime="{{ post.created_at }}">
-                        发布于 {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at is not string else post.created_at }}
-                    </time>
-                    {% if post.author %}
-                        <span class="mx-2">&middot;</span>
-                        <i class="bi bi-person me-1"></i>
-                        <span>{{ post.author }}</span>
+                {# 阶段2: 摘要 #}
+                {% if post.excerpt %}
+                <p class="lead text-muted mb-3">{{ post.excerpt }}</p>
+                {% endif %}
+
+                <div class="post-meta text-muted small d-flex align-items-center flex-wrap gap-2">
+                    {% if post.author_user %}
+                        <a href="{{ url_for('auth.profile', username=post.author_user.username) }}"
+                           class="d-inline-flex align-items-center text-decoration-none text-muted">
+                            <img src="{{ post.author_user.avatar() }}"
+                                 alt="{{ post.author_user.username }}"
+                                 width="24" height="24"
+                                 class="rounded-circle me-2"
+                                 style="object-fit: cover;">
+                            <span>{{ post.author_user.username }}</span>
+                        </a>
+                        <span>&middot;</span>
                     {% endif %}
-                    {% if post.updated_at and post.updated_at != post.created_at %}
-                        <span class="mx-2">&middot;</span>
-                        <i class="bi bi-pencil-square me-1"></i>
-                        <time datetime="{{ post.updated_at }}">
-                            更新于 {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at is not string else post.updated_at }}
+                    <span>
+                        <i class="bi bi-calendar3 me-1"></i>
+                        <time datetime="{{ post.published_at or post.created_at }}">
+                            {{ (post.published_at or post.created_at).strftime('%Y-%m-%d %H:%M') if (post.published_at or post.created_at) is not string else (post.published_at or post.created_at) }}
                         </time>
+                    </span>
+                    {% if post.updated_at and post.updated_at != post.created_at %}
+                        <span>&middot;</span>
+                        <span>
+                            <i class="bi bi-pencil-square me-1"></i>
+                            <time datetime="{{ post.updated_at }}">
+                                {{ post.updated_at.strftime('%Y-%m-%d %H:%M') if post.updated_at is not string else post.updated_at }}
+                            </time>
+                        </span>
                     {% endif %}
+                    {% if post.view_count %}
+                        <span>&middot;</span>
+                        <span><i class="bi bi-eye me-1"></i>{{ post.view_count }} 阅读</span>
+                    {% endif %}
+                    <span>&middot;</span>
+                    <span class="badge bg-light text-secondary border">v{{ post.revision or 1 }}</span>
                 </div>
             </header>
 
@@ -86,11 +146,23 @@
                         <i class="bi bi-arrow-left me-1"></i>返回列表
                     </a>
 
-                    {# 右侧:编辑/删除按钮 #}
+                    {# 右侧:编辑/删除/导出按钮 (仅作者本人或管理员可见) #}
+                    {% set can_edit = current_user.is_authenticated and (post.author_id == current_user.id or current_user.is_admin()) %}
+                    {% if can_edit %}
                     <div class="btn-group" role="group" aria-label="文章操作">
                         <a href="{{ url_for('blog.edit', post_id=post.id) }}"
                            class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-pencil me-1"></i>编辑
+                        </a>
+                        <a href="{{ url_for('post_io.export_md', post_id=post.id) }}"
+                           class="btn btn-outline-info btn-sm"
+                           title="导出为 Markdown（含 YAML front-matter）">
+                            <i class="bi bi-download me-1"></i>.md
+                        </a>
+                        <a href="{{ url_for('post_io.export_zip', post_id=post.id) }}"
+                           class="btn btn-outline-secondary btn-sm"
+                           title="导出 zip（md + 元数据）">
+                            <i class="bi bi-file-earmark-zip"></i>
                         </a>
                         <button type="button"
                                 class="btn btn-outline-danger btn-sm"
@@ -101,27 +173,15 @@
                             <i class="bi bi-trash me-1"></i>删除
                         </button>
                     </div>
+                    {% endif %}
                 </div>
             </footer>
         </article>
 
-        {# 相关文章(同分类/同标签) #}
-        {% set related_posts = [] %}
-        {# 可在此扩展相关文章逻辑 #}
-
-        {# 评论区占位(后续可扩展) #}
-        <section class="comments-section mt-5">
-            <h3 class="h5 mb-3">
-                <i class="bi bi-chat-left-text me-2"></i>评论
-                <span class="badge bg-secondary ms-1">0</span>
-            </h3>
-            <div class="card">
-                <div class="card-body text-center text-muted py-4">
-                    <i class="bi bi-chat-dots display-6 d-block mb-2 opacity-50"></i>
-                    <p class="mb-0">评论功能即将上线</p>
-                </div>
-            </div>
-        </section>
+        {# 阶段3: 评论区 #}
+        {% if post.is_visible() %}
+            {% include "_comments.html" %}
+        {% endif %}
 
     </div>
 

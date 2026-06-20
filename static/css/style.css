@@ -585,3 +585,105 @@ main {
         background: #fff;
     }
 }
+
+/* ===========================
+   阶段5: 暗黑模式 + 代码高亮
+   =========================== */
+[data-bs-theme="dark"] {
+    --bs-body-bg: #0f1419;
+    --bs-body-color: #e6e6e6;
+    --bs-secondary-bg: #1a1f26;
+    --bs-tertiary-bg: #232a33;
+    --bs-border-color: #2d3748;
+    --bs-emphasis-color: #f0f0f0;
+    --blog-text-primary: #e6e6e6;
+    --blog-text-secondary: #9aa5b1;
+    --blog-bg-soft: #1a1f26;
+    --blog-border-color: #2d3748;
+    --blog-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --blog-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+[data-bs-theme="dark"] body { background-color: #0f1419; color: #e6e6e6; }
+[data-bs-theme="dark"] .card,
+[data-bs-theme="dark"] .list-group-item,
+[data-bs-theme="dark"] .modal-content { background-color: #1a1f26; color: #e6e6e6; border-color: #2d3748; }
+[data-bs-theme="dark"] .card-header { background-color: #232a33; border-color: #2d3748; }
+[data-bs-theme="dark"] .navbar.bg-primary { background-color: #1a1f26 !important; }
+[data-bs-theme="dark"] .navbar.bg-primary .nav-link,
+[data-bs-theme="dark"] .navbar.bg-primary .navbar-brand { color: #e6e6e6; }
+[data-bs-theme="dark"] .text-muted { color: #9aa5b1 !important; }
+[data-bs-theme="dark"] .bg-light,
+[data-bs-theme="dark"] .bg-white { background-color: #1a1f26 !important; color: #e6e6e6 !important; }
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select { background-color: #232a33; color: #e6e6e6; border-color: #2d3748; }
+[data-bs-theme="dark"] .table { color: #e6e6e6; }
+[data-bs-theme="dark"] pre,
+[data-bs-theme="dark"] .highlight { background-color: #0b0f14 !important; color: #e6e6e6; }
+[data-bs-theme="dark"] .alert-warning { background-color: #332701; color: #ffe69c; border-color: #664d03; }
+[data-bs-theme="dark"] .alert-info { background-color: #032830; color: #6edff6; border-color: #087990; }
+[data-bs-theme="dark"] .alert-success { background-color: #0a3622; color: #75b798; border-color: #0f5132; }
+[data-bs-theme="dark"] .alert-danger { background-color: #2c0b0e; color: #ea868f; border-color: #842029; }
+
+/* 代码块（codehilite 输出） */
+.post-content .highlight,
+.post-content pre {
+    background-color: #f6f8fa;
+    border: 1px solid var(--blog-border-color);
+    border-radius: var(--blog-radius-md);
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.95em;
+}
+.post-content code {
+    font-family: var(--blog-font-mono);
+    background-color: rgba(27,31,35,0.06);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.92em;
+}
+.post-content pre code { background: transparent; padding: 0; font-size: inherit; }
+[data-bs-theme="dark"] .post-content code { background-color: rgba(255,255,255,0.08); }
+
+/* Pygments token 颜色 (light) */
+.post-content .highlight .k  { color: #cf222e; }   /* keyword */
+.post-content .highlight .kn { color: #cf222e; }
+.post-content .highlight .s  { color: #0a3069; }   /* string */
+.post-content .highlight .s2 { color: #0a3069; }
+.post-content .highlight .s1 { color: #0a3069; }
+.post-content .highlight .c1 { color: #6e7781; font-style: italic; }  /* comment */
+.post-content .highlight .n  { color: #953800; }   /* name */
+.post-content .highlight .nb { color: #0550ae; }
+.post-content .highlight .nf { color: #8250df; }
+.post-content .highlight .mi { color: #0550ae; }   /* number */
+.post-content .highlight .o  { color: #24292f; }
+
+/* Pygments token (dark) */
+[data-bs-theme="dark"] .post-content .highlight .k  { color: #ff7b72; }
+[data-bs-theme="dark"] .post-content .highlight .kn { color: #ff7b72; }
+[data-bs-theme="dark"] .post-content .highlight .s  { color: #a5d6ff; }
+[data-bs-theme="dark"] .post-content .highlight .s2 { color: #a5d6ff; }
+[data-bs-theme="dark"] .post-content .highlight .s1 { color: #a5d6ff; }
+[data-bs-theme="dark"] .post-content .highlight .c1 { color: #8b949e; font-style: italic; }
+[data-bs-theme="dark"] .post-content .highlight .n  { color: #ffa657; }
+[data-bs-theme="dark"] .post-content .highlight .nb { color: #79c0ff; }
+[data-bs-theme="dark"] .post-content .highlight .nf { color: #d2a8ff; }
+[data-bs-theme="dark"] .post-content .highlight .mi { color: #79c0ff; }
+[data-bs-theme="dark"] .post-content .highlight .o  { color: #c9d1d9; }
+
+/* 文章正文 */
+.post-content { line-height: 1.85; }
+.post-content h2 { margin-top: 1.5rem; }
+.post-content img { max-width: 100%; height: auto; border-radius: var(--blog-radius-md); }
+.post-content blockquote {
+    border-left: 4px solid var(--blog-accent);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--blog-text-secondary);
+    background-color: var(--blog-bg-soft);
+    border-radius: 0 var(--blog-radius-md) var(--blog-radius-md) 0;
+}
+
+/* 平滑主题切换 */
+body { transition: background-color 0.3s, color 0.3s; }

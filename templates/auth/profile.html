@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% import "macros.html" as ui %}
+
+{% block title %}{{ profile_user.username }} 的主页{% endblock %}
+{% block description %}{{ profile_user.bio or (profile_user.username + ' 的个人主页') }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        {# 个人主页头部 #}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <img src="{{ profile_user.avatar() }}"
+                         alt="{{ profile_user.username }}"
+                         class="rounded-circle me-3"
+                         width="80" height="80"
+                         style="object-fit: cover; border: 3px solid var(--blog-border-color);">
+                    <div class="flex-grow-1">
+                        <h2 class="mb-1">
+                            {{ profile_user.username }}
+                            {% if profile_user.is_admin() %}
+                                <span class="badge bg-danger ms-1"><i class="bi bi-shield-check"></i> 管理员</span>
+                            {% elif profile_user.is_author() %}
+                                <span class="badge bg-primary ms-1"><i class="bi bi-pencil-square"></i> 作者</span>
+                            {% endif %}
+                        </h2>
+                        <p class="text-muted mb-1">
+                            <i class="bi bi-envelope me-1"></i>{{ profile_user.email }}
+                        </p>
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            加入于 {{ profile_user.created_at.strftime('%Y-%m-%d') if profile_user.created_at is not string else profile_user.created_at }}
+                            {% if profile_user.last_login %}
+                                &middot; <i class="bi bi-clock-history me-1"></i>
+                                最后登录 {{ profile_user.last_login.strftime('%Y-%m-%d %H:%M') if profile_user.last_login is not string else profile_user.last_login }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if is_owner %}
+                    <div>
+                        <a href="{{ url_for('auth.profile_edit') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-pencil me-1"></i>编辑资料
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if profile_user.bio %}
+                    <div class="alert alert-light border mb-0">
+                        <i class="bi bi-quote me-1 text-muted"></i>{{ profile_user.bio }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# 个人文章列表 #}
+        <header class="page-header mb-3 pb-2 border-bottom">
+            <h4 class="mb-0">
+                <i class="bi bi-journal-text me-2 text-primary"></i>发表的文章
+                <span class="badge bg-secondary ms-1">{{ pagination.total if pagination else posts|length }}</span>
+            </h4>
+        </header>
+
+        {% if posts %}
+            {% for post in posts %}
+                {{ ui.post_card(post) }}
+            {% endfor %}
+            {{ ui.pagination(pagination, endpoint='profile') }}
+        {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-journal-x display-4 d-block mb-2 opacity-50"></i>
+                {% if is_owner %}
+                    <p class="mb-3">还没有发表过文章</p>
+                    <a href="{{ url_for('blog.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>写第一篇
+                    </a>
+                {% else %}
+                    <p class="mb-0">该用户还未发表文章</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    {# 侧边栏 - 统计信息 #}
+    <aside class="col-lg-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>数据统计</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">文章总数</span>
+                    <strong>{{ profile_user.posts.count() }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">注册时间</span>
+                    <strong>{{ profile_user.created_at.strftime('%Y-%m-%d') if profile_user.created_at is not string else '-' }}</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">账号状态</span>
+                    <strong class="text-success">
+                        {% if profile_user.is_active %}<i class="bi bi-check-circle"></i> 正常{% else %}<i class="bi bi-x-circle"></i> 已禁用{% endif %}
+                    </strong>
+                </div>
+            </div>
+        </div>
+
+        {% if is_owner %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>账号设置</h5>
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="{{ url_for('auth.profile_edit') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-person-gear me-2"></i>编辑个人资料
+                </a>
+                <a href="{{ url_for('auth.change_password') }}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-key me-2"></i>修改密码
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="list-group-item list-group-item-action text-danger">
+                    <i class="bi bi-box-arrow-right me-2"></i>退出登录
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

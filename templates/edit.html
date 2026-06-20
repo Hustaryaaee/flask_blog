@@ -164,6 +164,79 @@
                 </div>
             </div>
 
+            {# 阶段2: 发布选项 / 封面 / 摘要 #}
+            <div class="card border-light-subtle mb-4">
+                <div class="card-header bg-light-subtle d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-gear me-1"></i>发布选项</span>
+                    <span class="badge bg-secondary">v{{ post.revision or 1 }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">状态</label>
+                            {% set cur_status = post.status or 'published' %}
+                            <select class="form-select" name="status">
+                                {% for s in STATUS_CHOICES or ('draft', 'scheduled', 'published', 'archived') %}
+                                    <option value="{{ s }}" {% if s == cur_status %}selected{% endif %}>
+                                        {% if s == 'draft' %}草稿{% endif %}
+                                        {% if s == 'scheduled' %}定时发布{% endif %}
+                                        {% if s == 'published' %}立即发布{% endif %}
+                                        {% if s == 'archived' %}归档（仅管理员）{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">发布时间（定时）</label>
+                            <input type="datetime-local" class="form-control" name="published_at"
+                                   value="{{ post.published_at.strftime('%Y-%m-%dT%H:%M') if post.published_at else '' }}">
+                            <div class="form-text">为空则立即发布</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">封面图 URL</label>
+                            <input type="url" class="form-control" name="cover_image"
+                                   value="{{ post.cover_image or '' }}"
+                                   placeholder="https://...">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">摘要</label>
+                            <textarea class="form-control" name="excerpt" rows="2" maxlength="500"
+                                      placeholder="可选；留空则从正文自动截取">{{ post.excerpt or '' }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">版本说明</label>
+                            <input type="text" class="form-control" name="revision_note" maxlength="200"
+                                   placeholder="本次修改的备注（可选，会随历史版本保存）">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# 阶段2: SEO #}
+            <div class="card border-light-subtle mb-4">
+                <div class="card-header bg-light-subtle">
+                    <i class="bi bi-search me-1"></i>SEO（可选）
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">SEO 标题</label>
+                            <input type="text" class="form-control" name="seo_title" maxlength="200"
+                                   value="{{ post.seo_title or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">SEO 关键词</label>
+                            <input type="text" class="form-control" name="seo_keywords" maxlength="200"
+                                   value="{{ post.seo_keywords or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">SEO 描述</label>
+                            <textarea class="form-control" name="seo_description" rows="2" maxlength="300">{{ post.seo_description or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {# ---------- 正文字段 ---------- #}
             <div class="mb-4">
                 <label for="content" class="form-label fw-semibold">
@@ -225,6 +298,10 @@
                     <i class="bi bi-x-lg me-1"></i>取消
                 </a>
                 <div class="btn-group" role="group">
+                    <a href="{{ url_for('blog.history', post_id=post.id) }}"
+                       class="btn btn-outline-info">
+                        <i class="bi bi-clock-history me-1"></i>历史({{ post.histories.count() }})
+                    </a>
                     <button type="reset"
                             class="btn btn-outline-warning"
                             data-bs-toggle="tooltip"
@@ -262,6 +339,27 @@
 
 {% block extra_scripts %}
 <script>
+    // 阶段4: EasyMDE 编辑器
+    if (typeof EasyMDE !== 'undefined') {
+        window.easyMDE = new EasyMDE({
+            element: document.getElementById('content'),
+            spellChecker: false,
+            autosave: { enabled: false },
+            minHeight: '320px',
+            status: ['lines', 'words', 'cursor'],
+            toolbar: [
+                'bold', 'italic', 'heading', '|',
+                'quote', 'unordered-list', 'ordered-list', '|',
+                'link', 'image', 'table', 'code', 'horizontal-rule', '|',
+                'preview', 'side-by-side', 'fullscreen', '|',
+                'guide'
+            ],
+        });
+        document.getElementById('postEditForm').addEventListener('submit', function() {
+            window.easyMDE.codemirror.save();
+        });
+    }
+
     (function () {
         const titleEl = document.getElementById('title');
         const titleCounter = document.getElementById('titleCounter');

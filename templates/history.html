@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}版本历史 - {{ post.title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('blog.index') }}" class="text-decoration-none"><i class="bi bi-house-door me-1"></i>首页</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('blog.detail', slug=post.slug) }}" class="text-decoration-none">文章</a></li>
+                <li class="breadcrumb-item active" aria-current="page">历史</li>
+            </ol>
+        </nav>
+
+        <header class="page-header mb-4 pb-3 border-bottom">
+            <h1 class="h3 fw-bold mb-2"><i class="bi bi-clock-history me-2 text-info"></i>版本历史</h1>
+            <p class="text-muted mb-0">
+                《{{ post.title }}》当前为 v{{ post.revision }}，共 {{ histories|length }} 条历史
+            </p>
+        </header>
+
+        {% if histories|length == 0 %}
+            <div class="alert alert-info">暂无历史记录（首次保存编辑后会自动生成）</div>
+        {% else %}
+            <div class="list-group">
+                {% for h in histories %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="badge bg-secondary me-2">v{{ h.revision }}</span>
+                            <span class="fw-semibold">{{ h.title }}</span>
+                            {% if h.note %}<span class="text-muted small">— {{ h.note }}</span>{% endif %}
+                        </div>
+                        <small class="text-muted">{{ h.saved_at.strftime('%Y-%m-%d %H:%M') if h.saved_at }}</small>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        {% if h.saved_by %}由 {{ h.saved_by.username }} 保存 · {% endif %}
+                        {{ h.content|length }} 字符
+                    </div>
+                    <div class="mt-2">
+                        <form method="POST" action="{{ url_for('blog.restore_history', post_id=post.id, revision=h.revision) }}"
+                              onsubmit="return confirm('确定回滚到 v{{ h.revision }} 吗？当前内容会自动备份。');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-info">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>回滚到此版本
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="mt-4">
+            <a href="{{ url_for('blog.edit', post_id=post.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>返回编辑
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

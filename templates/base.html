@@ -22,6 +22,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     {% block extra_head %}{% endblock %}
+
+    {# 阶段4: EasyMDE 编辑器（按需加载）#}
+    {% if request.endpoint in ('blog.create', 'blog.edit') %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    {% endif %}
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -53,15 +58,90 @@
                             <i class="bi bi-tags me-1"></i>分类/标签
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'blog.archive' %}active{% endif %}"
+                           href="{{ url_for('blog.archive') }}">
+                            <i class="bi bi-archive me-1"></i>归档
+                        </a>
+                    </li>
                 </ul>
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('upload.upload') }}"
-                       class="btn btn-outline-light btn-sm fw-semibold {% if request.endpoint == 'upload.upload' %}active{% endif %}">
-                        <i class="bi bi-cloud-upload me-1"></i>上传文件
-                    </a>
-                    <a href="{{ url_for('blog.create') }}" class="btn btn-light btn-sm fw-semibold">
-                        <i class="bi bi-plus-circle me-1"></i>写文章
-                    </a>
+
+                {# 阶段5: 暗黑模式切换 #}
+                <button class="btn btn-outline-light btn-sm me-2" id="themeToggle"
+                        title="切换主题" aria-label="切换主题">
+                    <i class="bi bi-moon-stars" id="themeIcon"></i>
+                </button>
+
+                {# 阶段3: 搜索框 #}
+                <form class="d-flex me-2" role="search" action="{{ url_for('blog.search') }}" method="GET">
+                    <input class="form-control form-control-sm me-1" type="search" name="q"
+                           placeholder="搜索文章…" value="{{ request.args.get('q', '') }}" aria-label="Search">
+                    <button class="btn btn-sm btn-outline-light" type="submit"><i class="bi bi-search"></i></button>
+                </form>
+                <div class="d-flex gap-2 align-items-center">
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('upload.upload') }}"
+                           class="btn btn-outline-light btn-sm fw-semibold {% if request.endpoint == 'upload.upload' %}active{% endif %}">
+                            <i class="bi bi-cloud-upload me-1"></i>上传文件
+                        </a>
+                        <a href="{{ url_for('blog.create') }}" class="btn btn-light btn-sm fw-semibold">
+                            <i class="bi bi-plus-circle me-1"></i>写文章
+                        </a>
+                        <div class="dropdown">
+                            <button class="btn btn-light btn-sm dropdown-toggle d-flex align-items-center"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                <img src="{{ current_user.avatar() }}"
+                                     alt="{{ current_user.username }}"
+                                     width="24" height="24"
+                                     class="rounded-circle me-1"
+                                     style="object-fit: cover;">
+                                <span>{{ current_user.username }}</span>
+                                {% if current_user.is_admin() %}
+                                    <span class="badge bg-danger ms-1">管理员</span>
+                                {% endif %}
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                                        <i class="bi bi-person me-1"></i>个人中心
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('auth.profile_edit') }}">
+                                        <i class="bi bi-person-gear me-1"></i>编辑资料
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('auth.change_password') }}">
+                                        <i class="bi bi-key me-1"></i>修改密码
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% if current_user.is_admin() %}
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('auth.user_list') }}">
+                                        <i class="bi bi-people me-1"></i>用户管理
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                <li>
+                                    <a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
+                                        <i class="bi bi-box-arrow-right me-1"></i>退出登录
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-sm fw-semibold">
+                            <i class="bi bi-box-arrow-in-right me-1"></i>登录
+                        </a>
+                        <a href="{{ url_for('auth.register') }}" class="btn btn-light btn-sm fw-semibold">
+                            <i class="bi bi-person-plus me-1"></i>注册
+                        </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -124,6 +204,51 @@
 
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    {# 阶段4: EasyMDE（按需加载）#}
+    {% if request.endpoint in ('blog.create', 'blog.edit') %}
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    {% endif %}
+
+    {# 阶段5: MathJax（仅详情页加载，懒渲染数学公式）#}
+    {% if request.endpoint == 'blog.detail' %}
+    <script>
+        window.MathJax = {
+            tex: {inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$','$$'], ['\\[','\\]']]},
+            svg: {fontCache: 'global'},
+            options: {skipHtmlTags: ['script','noscript','style','textarea','pre','code']}
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+    {% endif %}
+
+    {# 阶段5: 暗黑模式切换脚本 #}
+    <script>
+        (function() {
+            const KEY = 'blog-theme';
+            const saved = localStorage.getItem(KEY);
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = saved || (prefersDark ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', theme === 'dark' ? 'dark' : 'light');
+            document.addEventListener('DOMContentLoaded', () => {
+                const icon = document.getElementById('themeIcon');
+                if (icon) icon.className = theme === 'dark' ? 'bi bi-sun' : 'bi bi-moon-stars';
+            });
+        })();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('themeToggle');
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                const cur = document.documentElement.getAttribute('data-bs-theme');
+                const next = cur === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-bs-theme', next);
+                localStorage.setItem('blog-theme', next);
+                const icon = document.getElementById('themeIcon');
+                if (icon) icon.className = next === 'dark' ? 'bi bi-sun' : 'bi bi-moon-stars';
+            });
+        });
+    </script>
 
     {% block extra_scripts %}{% endblock %}
 </body>
