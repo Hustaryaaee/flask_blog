@@ -28,8 +28,36 @@
             <p class="text-muted mb-0">分享你的想法、技术或生活感悟</p>
         </header>
 
+        {# 文件上传区域 - 拖拽或点击上传 #}
+        <div class="card border-primary mb-4 shadow-sm" id="uploadZone">
+            <div class="card-body text-center py-4">
+                <div class="upload-content">
+                    <i class="bi bi-cloud-arrow-up display-4 text-primary mb-3"></i>
+                    <h5 class="mb-2">拖拽 Markdown 文件到此处</h5>
+                    <p class="text-muted mb-3">或点击下方按钮选择文件</p>
+                    <input type="file"
+                           id="fileInput"
+                           name="file"
+                           accept=".md,.txt"
+                           class="d-none">
+                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                        <i class="bi bi-file-earmark-text me-1"></i>选择 .md / .txt 文件
+                    </button>
+                    <p class="small text-muted mt-2 mb-0">支持 .md 与 .txt 格式，最大 16MB</p>
+                </div>
+                <div class="upload-progress d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2 mb-0">正在读取文件...</p>
+                </div>
+            </div>
+        </div>
+
         <form method="POST"
               action="{{ url_for('blog.create') }}"
+              enctype="multipart/form-data"
+              id="postForm"
               class="post-form needs-validation"
               novalidate
               id="postCreateForm">
@@ -205,6 +233,9 @@
         const titleCounter = document.getElementById('titleCounter');
         const contentEl = document.getElementById('content');
         const contentCounter = document.getElementById('contentCounter');
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const postForm = document.getElementById('postForm');
 
         function updateCount(input, counter, max) {
             const len = input.value.length;
@@ -244,6 +275,100 @@
                 tagsInput.focus();
             });
         });
+
+        // 文件上传处理
+        if (uploadZone && fileInput) {
+            // 拖拽上传
+            uploadZone.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                uploadZone.classList.add('border-success', 'bg-light');
+            });
+            uploadZone.addEventListener('dragleave', function (e) {
+                e.preventDefault();
+                uploadZone.classList.remove('border-success', 'bg-light');
+            });
+            uploadZone.addEventListener('drop', function (e) {
+                e.preventDefault();
+                uploadZone.classList.remove('border-success', 'bg-light');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileUpload(files[0]);
+                }
+            });
+
+            // 点击选择文件
+            fileInput.addEventListener('change', function () {
+                if (this.files.length > 0) {
+                    handleFileUpload(this.files[0]);
+                }
+            });
+
+            function handleFileUpload(file) {
+                // 检查文件类型
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (!['md', 'txt'].includes(ext)) {
+                    alert('仅支持 .md 和 .txt 文件');
+                    return;
+                }
+                // 检查文件大小 (16MB)
+                if (file.size > 16 * 1024 * 1024) {
+                    alert('文件大小不能超过 16MB');
+                    return;
+                }
+
+                // 显示加载状态
+                const uploadContent = uploadZone.querySelector('.upload-content');
+                const uploadProgress = uploadZone.querySelector('.upload-progress');
+                uploadContent.classList.add('d-none');
+                uploadProgress.classList.remove('d-none');
+
+                // 读取文件内容
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const content = e.target.result;
+                    // 提取标题 (第一个 # 开头的行)
+                    let title = '';
+                    const lines = content.split('\n');
+                    for (const line of lines) {
+                        const stripped = line.trim();
+                        if (stripped.startsWith('#')) {
+                            title = stripped.replace(/^#+\s*/, '');
+                            break;
+                        }
+                    }
+                    if (!title) {
+                        title = file.name.replace(/\.(md|txt)$/i, '');
+                    }
+
+                    // 填充表单
+                    document.getElementById('title').value = title;
+                    document.getElementById('content').value = content;
+                    document.getElementById('is_markdown').checked = true;
+
+                    // 更新计数器
+                    updateCount(titleEl, titleCounter, 200);
+                    updateCount(contentEl, contentCounter, null);
+
+                    // 隐藏上传区域
+                    uploadZone.classList.add('d-none');
+
+                    // 显示成功提示
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                    alertDiv.innerHTML = '<i class="bi bi-check-circle me-2"></i>文件已加载！请编辑后发布。<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                    postForm.parentNode.insertBefore(alertDiv, postForm);
+
+                    // 自动聚焦到标题
+                    document.getElementById('title').focus();
+                };
+                reader.onerror = function () {
+                    alert('文件读取失败，请重试');
+                    uploadContent.classList.remove('d-none');
+                    uploadProgress.classList.add('d-none');
+                };
+                reader.readAsText(file);
+            }
+        }
     })();
 </script>
 {% endblock %}
