@@ -3,49 +3,54 @@
 File handling utilities for uploads and markdown reading.
 """
 import os
+import time
 
-from flask import current_app
 from werkzeug.utils import secure_filename
 
+# 默认允许的文件扩展名
+ALLOWED_EXTENSIONS = {'md', 'txt'}
 
-def allowed_file(filename: str) -> bool:
+
+def allowed_file(filename: str, allowed_extensions: set = None) -> bool:
     """
     检查文件扩展名是否在允许列表中
 
     Args:
         filename: 原始文件名
+        allowed_extensions: 允许的扩展名集合，默认使用 ALLOWED_EXTENSIONS
 
     Returns:
         bool - 文件类型是否允许
     """
+    extensions = allowed_extensions or ALLOWED_EXTENSIONS
     return (
         '.' in filename
-        and filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
+        and filename.rsplit('.', 1)[1].lower() in extensions
     )
 
 
-def save_upload(file):
+def save_upload(file, upload_folder: str, allowed_extensions: set = None):
     """
-    保存上传的文件到 UPLOAD_FOLDER
+    保存上传的文件到指定目录
 
     Args:
         file: werkzeug FileStorage 对象
+        upload_folder: 上传目录路径
+        allowed_extensions: 允许的扩展名集合
 
     Returns:
         str | None - 成功返回保存路径，失败返回 None
     """
-    if file and allowed_file(file.filename):
+    if file and allowed_file(file.filename, allowed_extensions):
         filename = secure_filename(file.filename)
         # 避免文件名冲突：同名文件追加时间戳
-        upload_dir = current_app.config['UPLOAD_FOLDER']
-        os.makedirs(upload_dir, exist_ok=True)
+        os.makedirs(upload_folder, exist_ok=True)
 
-        filepath = os.path.join(upload_dir, filename)
+        filepath = os.path.join(upload_folder, filename)
         if os.path.exists(filepath):
             name, ext = os.path.splitext(filename)
-            import time
             filename = f"{name}_{int(time.time())}{ext}"
-            filepath = os.path.join(upload_dir, filename)
+            filepath = os.path.join(upload_folder, filename)
 
         file.save(filepath)
         return filepath

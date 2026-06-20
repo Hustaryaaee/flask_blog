@@ -6,10 +6,9 @@ from urllib.parse import quote
 
 from flask import (
     Blueprint, render_template, request,
-    flash, redirect, url_for,
+    flash, redirect, url_for, current_app,
 )
-
-from utils.file_handler import save_upload, read_markdown_file
+from utils.file_handler import save_upload, read_markdown_file, ALLOWED_EXTENSIONS
 
 # 创建上传蓝图
 upload_bp = Blueprint('upload', __name__)
@@ -28,7 +27,11 @@ def upload():
             flash('请选择文件', 'error')
             return render_template('upload.html')
 
-        filepath = save_upload(file)
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        allowed = current_app.config.get('ALLOWED_EXTENSIONS', ALLOWED_EXTENSIONS)
+        
+        filepath = save_upload(file, upload_folder, allowed)
+        
         if filepath:
             content = read_markdown_file(filepath)
             # 提取标题: 优先取第一个以 # 开头的行, 否则使用文件名
@@ -42,7 +45,7 @@ def upload():
                 # 回退到文件名 (去掉扩展名)
                 title = file.filename.rsplit('.', 1)[0]
 
-            flash(f'文件上传成功!已读取 {len(content)} 字符', 'success')
+            flash(f'文件上传成功! 已读取 {len(content)} 字符', 'success')
             # 通过 URL 参数预填 create 表单 (内容用 URL 安全编码)
             return redirect(url_for(
                 'blog.create',
@@ -51,6 +54,7 @@ def upload():
                 is_markdown=1,
             ))
         else:
-            flash('不支持的文件类型,仅支持 .md 和 .txt', 'error')
+            flash('不支持的文件类型，仅支持 .md 和 .txt', 'error')
+            return render_template('upload.html')
 
     return render_template('upload.html')
