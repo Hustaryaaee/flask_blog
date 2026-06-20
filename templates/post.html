@@ -58,7 +58,7 @@
             </header>
 
             {# 分类与标签 #}
-            {% if post.category or (post.tags and post.tags|length > 0) %}
+            {% if post.category or (post.tags and post.tags.all()) %}
             <div class="card-body pb-2 pt-0">
                 <div class="post-taxonomy">
                     {{ ui.render_post_meta(post) }}

@@ -41,7 +41,7 @@
             </p>
 
             {# 分类与标签 #}
-            {% if post.category or (post.tags and post.tags|length > 0) %}
+            {% if post.category or (post.tags and post.tags.all()) %}
             <div class="post-taxonomy mb-3">
                 {{ render_post_meta(post) }}
             </div>
