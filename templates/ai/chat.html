@@ -25,6 +25,10 @@
         border-radius: var(--blog-radius-sm); text-decoration: none;
         color: inherit; border: 1px solid transparent;
     }
+    .session-link { cursor: pointer; padding: .15rem .25rem; border-radius: 4px; }
+    .session-link:hover { background: rgba(0,0,0,.04); }
+    [data-bs-theme="dark"] .session-link:hover { background: rgba(255,255,255,.06); }
+    .session-link:focus-visible { outline: 2px solid var(--blog-accent); outline-offset: 1px; }
     .session-item:hover { background: var(--blog-bg-soft); }
     .session-item.active { background: var(--blog-bg-soft); border-color: var(--blog-accent); }
     .session-item .title { display: block; font-weight: 500; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -85,8 +89,8 @@
                         {% if sessions %}
                             {% for s in sessions %}
                             <div class="session-item {% if active_session and active_session.id == s.id %}active{% endif %} d-flex justify-content-between align-items-center">
-                                <a href="{{ url_for('ai.view_session', session_id=s.id) }}" class="text-decoration-none text-reset flex-grow-1 overflow-hidden"
-                                   ondblclick="event.preventDefault(); startInlineEdit({{ s.id }}, this.querySelector('.title'), event);">
+                                <a href="{{ url_for('ai.view_session', session_id=s.id) }}" class="session-link text-decoration-none text-reset flex-grow-1 overflow-hidden"
+                                   data-session-id="{{ s.id }}">
                                     <span class="title d-block fw-medium" title="双击编辑">{{ s.title }}</span>
                                     <span class="time d-block small text-muted">{{ s.updated_at.strftime('%m-%d %H:%M') if s.updated_at }}</span>
                                     {% if s.post_id %}<small class="badge bg-info">文章</small>{% endif %}
@@ -320,6 +324,48 @@
         el.addEventListener('blur', onBlur);
     }
     window.startInlineEdit = startInlineEdit;
+
+    // ---------- 侧栏会话项：单击跳转，双击编辑 ----------
+    // 用 <a> + 延迟跳转处理 click vs dblclick 冲突
+    document.querySelectorAll('.session-link').forEach(link => {
+        const href = link.getAttribute('href');
+        const sid = Number(link.dataset.sessionId);
+        let clickTimer = null;
+
+        link.addEventListener('click', (e) => {
+            // 中键 / 修饰键 / 选中文字 → 浏览器默认行为
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            const sel = window.getSelection();
+            if (sel && sel.toString().length > 0) return;
+            // 阻止默认跳转，由 JS 延迟后决定
+            e.preventDefault();
+            if (clickTimer) {
+                // 第二次 click → 视为双击 → 启动编辑
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                const titleEl = link.querySelector('.title');
+                if (titleEl && !titleEl.dataset.editing) {
+                    startInlineEdit(sid, titleEl, e);
+                }
+            } else {
+                // 第一次 click → 延迟 250ms 跳转（给双击留时间）
+                clickTimer = setTimeout(() => {
+                    clickTimer = null;
+                    window.location.href = href;
+                }, 250);
+            }
+        });
+
+        // 某些浏览器 dblclick 不会被 click 替代 → 直接拦
+        link.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+            const titleEl = link.querySelector('.title');
+            if (titleEl && !titleEl.dataset.editing) {
+                startInlineEdit(sid, titleEl, e);
+            }
+        });
+    });
 
     // 删除会话（侧栏按钮）
     async function deleteSession(sessionId, btn) {
