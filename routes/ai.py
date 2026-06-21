@@ -121,6 +121,8 @@ def _call_ai(system_text, messages):
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {api_key}',
     }
+    import logging
+    logging.warning(f'[AI] call openai url={url} model={cfg["AI_MODEL"]}')
     resp = urllib.request.urlopen(
         urllib.request.Request(url, data=json.dumps(payload).encode(), method='POST', headers=headers),
         timeout=cfg['AI_TIMEOUT'],
@@ -263,8 +265,8 @@ def send(session_id):
         content=user_text,
     )
     db.session.add(user_msg)
-    # 首条用户消息 → 更新 title
-    if session.title == '新对话' and not session.messages.filter_by(role=ChatMessage.ROLE_USER).first():
+    # 首条用户消息 → 自动用其内容作为会话标题
+    if session.title == '新对话':
         session.title = user_text[:30] + ('…' if len(user_text) > 30 else '')
 
     cfg = current_app.config
@@ -317,6 +319,22 @@ def delete_session(session_id):
     db.session.delete(session)
     db.session.commit()
     return jsonify({'success': True})
+
+
+@ai_bp.route('/session/<int:session_id>/rename', methods=['POST'])
+@login_required
+def rename_session(session_id):
+    """POST /ai/session/<id>/rename - 修改会话标题"""
+    session = ChatSession.query.get_or_404(session_id)
+    if session.user_id != current_user.id:
+        abort(404)
+    data = request.get_json(silent=True) or request.form
+    new_title = (data.get('title') or '').strip()[:120]
+    if not new_title:
+        return jsonify({'error': '标题不能为空'}), 400
+    session.title = new_title
+    db.session.commit()
+    return jsonify({'success': True, 'title': session.title})
 
 
 # ---------------------------------------------------------------------------

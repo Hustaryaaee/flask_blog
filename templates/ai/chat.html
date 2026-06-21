@@ -91,8 +91,11 @@
                 <div class="ai-messages" id="messagesContainer">
                     {% if active_session %}
                         <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                            <div>
-                                <strong>{{ active_session.title }}</strong>
+                            <div class="d-flex align-items-center flex-grow-1">
+                                <strong id="sessionTitle" data-session-id="{{ active_session.id }}"
+                                        style="cursor: pointer; user-select: none;"
+                                        title="点击编辑会话标题"
+                                        ondblclick="renameSession({{ active_session.id }}, this)">{{ active_session.title }}</strong>
                                 {% if active_session.post %}
                                     <span class="badge bg-info ms-2">关于《{{ active_session.post.title }}》</span>
                                 {% endif %}
@@ -224,6 +227,30 @@
 {% endif %}
 
 <script>
+    // 重命名会话（双击标题触发）
+    async function renameSession(sessionId, el) {
+        const current = el.textContent.trim();
+        const next = window.prompt('修改会话标题', current);
+        if (!next || next === current) return;
+        const trimmed = next.trim().slice(0, 120);
+        if (!trimmed) return;
+        const r = await fetch('/ai/session/' + sessionId + '/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+            body: JSON.stringify({ title: trimmed }),
+        });
+        const data = await r.json();
+        if (r.ok && data.title) {
+            el.textContent = data.title;
+            // 同步侧栏标题
+            const sidebarItem = document.querySelector('.session-item.active .title');
+            if (sidebarItem) sidebarItem.textContent = data.title;
+        } else {
+            alert(data.error || '修改失败');
+        }
+    }
+    window.renameSession = renameSession;
+
     // 新对话按钮
     const newBtn = document.getElementById('newSessionBtn');
     if (newBtn) {
