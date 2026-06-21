@@ -73,8 +73,9 @@
                         {% if sessions %}
                             {% for s in sessions %}
                             <div class="session-item {% if active_session and active_session.id == s.id %}active{% endif %} d-flex justify-content-between align-items-center">
-                                <a href="{{ url_for('ai.view_session', session_id=s.id) }}" class="text-decoration-none text-reset flex-grow-1 overflow-hidden">
-                                    <span class="title d-block fw-medium">{{ s.title }}</span>
+                                <a href="{{ url_for('ai.view_session', session_id=s.id) }}" class="text-decoration-none text-reset flex-grow-1 overflow-hidden"
+                                   ondblclick="event.preventDefault(); renameSidebarSession({{ s.id }}, this, event);">
+                                    <span class="title d-block fw-medium" title="双击重命名">{{ s.title }}</span>
                                     <span class="time d-block small text-muted">{{ s.updated_at.strftime('%m-%d %H:%M') if s.updated_at }}</span>
                                     {% if s.post_id %}<small class="badge bg-info">文章</small>{% endif %}
                                 </a>
@@ -248,14 +249,29 @@
         const data = await r.json();
         if (r.ok && data.title) {
             el.textContent = data.title;
-            // 同步侧栏标题
-            const sidebarItem = document.querySelector('.session-item.active .title');
-            if (sidebarItem) sidebarItem.textContent = data.title;
+            // 同步：主区标题 (id=sessionTitle) + 侧栏所有同名 span
+            const main = document.getElementById('sessionTitle');
+            if (main && Number(main.dataset.sessionId) === sessionId) {
+                main.textContent = data.title;
+            }
+            document.querySelectorAll('.session-item .title').forEach(s => {
+                if (s !== el) s.textContent = data.title;
+            });
         } else {
             alert(data.error || '修改失败');
         }
     }
     window.renameSession = renameSession;
+
+    // 侧栏专用：双击 <a> 区域触发，从 <a>.title span 找元素
+    async function renameSidebarSession(sessionId, anchorEl, evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        const titleEl = anchorEl.querySelector('.title');
+        if (!titleEl) return;
+        await renameSession(sessionId, titleEl);
+    }
+    window.renameSidebarSession = renameSidebarSession;
 
     // 删除会话（侧栏按钮）
     async function deleteSession(sessionId, btn) {
