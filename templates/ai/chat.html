@@ -32,6 +32,18 @@
     .empty-hint { text-align: center; color: var(--blog-text-secondary); padding: 2rem; }
     .typing { color: var(--blog-text-secondary); font-style: italic; }
     .demo-badge { background: var(--bs-warning); color: #000; padding: .15rem .5rem; border-radius: 4px; font-size: .75rem; }
+    .inline-editing {
+        background: #fffbe6 !important;
+        border: 1px solid var(--blog-accent);
+        border-radius: 4px;
+        padding: 0 .25rem;
+        outline: none;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        box-shadow: 0 0 0 2px rgba(0,123,255,.15);
+    }
+    [data-bs-theme="dark"] .inline-editing { background: #1a1f26 !important; }
 </style>
 {% endblock %}
 
@@ -74,8 +86,8 @@
                             {% for s in sessions %}
                             <div class="session-item {% if active_session and active_session.id == s.id %}active{% endif %} d-flex justify-content-between align-items-center">
                                 <a href="{{ url_for('ai.view_session', session_id=s.id) }}" class="text-decoration-none text-reset flex-grow-1 overflow-hidden"
-                                   ondblclick="event.preventDefault(); renameSidebarSession({{ s.id }}, this, event);">
-                                    <span class="title d-block fw-medium" title="双击重命名">{{ s.title }}</span>
+                                   ondblclick="event.preventDefault(); startInlineEdit({{ s.id }}, this.querySelector('.title'), event);">
+                                    <span class="title d-block fw-medium" title="双击编辑">{{ s.title }}</span>
                                     <span class="time d-block small text-muted">{{ s.updated_at.strftime('%m-%d %H:%M') if s.updated_at }}</span>
                                     {% if s.post_id %}<small class="badge bg-info">文章</small>{% endif %}
                                 </a>
@@ -100,9 +112,9 @@
                         <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                             <div class="d-flex align-items-center flex-grow-1">
                                 <strong id="sessionTitle" data-session-id="{{ active_session.id }}"
-                                        style="cursor: pointer; user-select: none;"
-                                        title="点击编辑会话标题"
-                                        ondblclick="renameSession({{ active_session.id }}, this)">{{ active_session.title }}</strong>
+                                        style="cursor: text; user-select: none; min-width: 60px; outline: none;"
+                                        title="双击编辑"
+                                        ondblclick="startInlineEdit({{ active_session.id }}, this, event)">{{ active_session.title }}</strong>
                                 {% if active_session.post %}
                                     <span class="badge bg-info ms-2">关于《{{ active_session.post.title }}》</span>
                                 {% endif %}
@@ -234,44 +246,80 @@
 {% endif %}
 
 <script>
-    // 重命名会话（双击标题触发）
-    async function renameSession(sessionId, el) {
-        const current = el.textContent.trim();
-        const next = window.prompt('修改会话标题', current);
-        if (!next || next === current) return;
-        const trimmed = next.trim().slice(0, 120);
-        if (!trimmed) return;
-        const r = await fetch('/ai/session/' + sessionId + '/rename', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-            body: JSON.stringify({ title: trimmed }),
-        });
-        const data = await r.json();
-        if (r.ok && data.title) {
-            el.textContent = data.title;
-            // 同步：主区标题 (id=sessionTitle) + 侧栏所有同名 span
-            const main = document.getElementById('sessionTitle');
-            if (main && Number(main.dataset.sessionId) === sessionId) {
-                main.textContent = data.title;
-            }
-            document.querySelectorAll('.session-item .title').forEach(s => {
-                if (s !== el) s.textContent = data.title;
-            });
-        } else {
-            alert(data.error || '修改失败');
-        }
-    }
-    window.renameSession = renameSession;
+    // ---------- 就地编辑会话标题 ----------
+    // 双击任意 .title (侧栏项 / 主区 #sessionTitle) 直接变 input
+    function startInlineEdit(sessionId, el, evt) {
+        if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+        if (!el || el.dataset.editing === '1') return;
+        el.dataset.editing = '1';
+        const original = el.textContent.trim();
+        el.contentEditable = 'true';
+        el.classList.add('inline-editing');
+        el.focus();
+        // 全选
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
 
-    // 侧栏专用：双击 <a> 区域触发，从 <a>.title span 找元素
-    async function renameSidebarSession(sessionId, anchorEl, evt) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        const titleEl = anchorEl.querySelector('.title');
-        if (!titleEl) return;
-        await renameSession(sessionId, titleEl);
+        let finished = false;
+        const restore = () => {
+            if (finished) return;
+            finished = true;
+            el.contentEditable = 'false';
+            el.classList.remove('inline-editing');
+            delete el.dataset.editing;
+            el.removeEventListener('blur', onBlur);
+            el.removeEventListener('keydown', onKey);
+        };
+
+        const submit = async () => {
+            const next = (el.textContent || '').trim().slice(0, 120);
+            if (!next || next === original) { restore(); el.textContent = original; return; }
+            try {
+                const r = await fetch('/ai/session/' + sessionId + '/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+                    body: JSON.stringify({ title: next }),
+                });
+                const data = await r.json();
+                if (r.ok && data.title) {
+                    // 同步：主区 + 所有侧栏 .title
+                    const main = document.getElementById('sessionTitle');
+                    if (main && Number(main.dataset.sessionId) === sessionId) {
+                        main.textContent = data.title;
+                    }
+                    document.querySelectorAll('.session-item .title').forEach(s => {
+                        s.textContent = data.title;
+                    });
+                    if (el.classList.contains('title')) {
+                        el.textContent = data.title;
+                    } else {
+                        el.textContent = data.title;
+                    }
+                } else {
+                    el.textContent = original;
+                    alert(data.error || '修改失败');
+                }
+            } catch (e) {
+                el.textContent = original;
+                alert('网络错误: ' + e);
+            } finally {
+                restore();
+            }
+        };
+
+        const onKey = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            else if (e.key === 'Escape') { e.preventDefault(); restore(); el.textContent = original; }
+        };
+        const onBlur = () => submit();
+
+        el.addEventListener('keydown', onKey);
+        el.addEventListener('blur', onBlur);
     }
-    window.renameSidebarSession = renameSidebarSession;
+    window.startInlineEdit = startInlineEdit;
 
     // 删除会话（侧栏按钮）
     async function deleteSession(sessionId, btn) {

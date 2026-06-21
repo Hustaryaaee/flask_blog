@@ -1,0 +1,13 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 111-722-779
+D:\codeXcode\博客\app.py:61: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  return dict(csrf_token=generate_csrf, now=_dt.utcnow())
+127.0.0.1 - - [21/Jun/2026 23:57:29] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [21/Jun/2026 23:57:38] "GET /ai/session/1 HTTP/1.1" 200 -
+127.0.0.1 - - [21/Jun/2026 23:57:38] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [21/Jun/2026 23:57:38] "GET /static/js/main.js HTTP/1.1" 304 -
+127.0.0.1 - - [21/Jun/2026 23:57:38] "GET /uploads/avatars/user-2-7401b314.png HTTP/1.1" 304 -
