@@ -83,6 +83,15 @@ def create_app(config_object=None) -> Flask:
             output_format='html5',
         )
 
+    # 4.5 注册 uploads/ 目录的静态访问（用于头像 / 上传文件）
+    import os
+    from flask import send_from_directory
+    uploads_root = os.path.join(app.root_path, 'uploads')
+
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        return send_from_directory(uploads_root, filename)
+
     # 5. 注册蓝图
     register_blueprints(app)
 
