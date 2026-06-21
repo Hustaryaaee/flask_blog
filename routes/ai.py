@@ -318,7 +318,11 @@ def delete_session(session_id):
         abort(404)
     db.session.delete(session)
     db.session.commit()
-    return jsonify({'success': True})
+    # 普通表单提交 → 跳回聊天首页
+    if request.accept_mimetypes.best == 'application/json' or request.is_json:
+        return jsonify({'success': True})
+    flash('对话已删除', 'success')
+    return redirect(url_for('ai.index'))
 
 
 @ai_bp.route('/session/<int:session_id>/rename', methods=['POST'])
