@@ -35,8 +35,8 @@ htmlcov/
 # Backup
 backup/
 
-# Uploads
-uploads/
+# Uploads (用户上传的文件 - 保留本地，但不上传 GitHub)
+uploads/*
 
 # Minimax agent files (exclude from git)
 .minimax/
