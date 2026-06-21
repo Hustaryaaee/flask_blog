@@ -99,48 +99,30 @@
 
             <div class="row">
                 <div class="col-md-6 mb-4">
-                    <label for="category_id" class="form-label fw-semibold">
+                    <label for="category_name" class="form-label fw-semibold">
                         <i class="bi bi-folder me-1 text-warning"></i>文章分类
                     </label>
-                    <div class="input-group">
-                        <select class="form-select"
-                                id="category_id"
-                                name="category_id">
-                            <option value="">-- 未分类 --</option>
-                            {% for cat in categories %}
-                                <option value="{{ cat.id }}"
-                                    {% if cat.id == _current_category_id %}selected{% endif %}>
-                                    {{ cat.name }}
-                                    {% if cat.description %}- {{ cat.description }}{% endif %}
-                                </option>
-                            {% endfor %}
-                        </select>
-                        <button class="btn btn-outline-warning" type="button"
-                                id="addCategoryBtn" title="新建分类">
-                            <i class="bi bi-plus-lg"></i>
-                        </button>
-                    </div>
-                    <small class="text-muted">点 <kbd>+</kbd> 立即新建分类</small>
+                    <input type="text" class="form-control" id="category_name" name="category_name"
+                           placeholder="留空 = 未分类；输入新名称将自动创建"
+                           list="categoryOptions"
+                           autocomplete="off"
+                           value="{{ category_name if category_name is defined else '' }}">
+                    <datalist id="categoryOptions">
+                        {% for cat in categories %}
+                            <option value="{{ cat.name }}">
+                        {% endfor %}
+                    </datalist>
+                    <small class="text-muted">已有分类：{{ categories | map(attribute='name') | join('、') if categories else '（暂无）' }}</small>
                 </div>
 
                 <div class="col-md-6 mb-4">
                     <label for="tags" class="form-label fw-semibold">
                         <i class="bi bi-tags me-1 text-info"></i>文章标签
                     </label>
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control"
-                               id="tags"
-                               name="tags"
-                               placeholder="多个标签用逗号分隔"
-                               value="{{ _current_tags_value }}"
-                               autocomplete="off">
-                        <button class="btn btn-outline-info" type="button"
-                                id="addTagBtn" title="新建标签">
-                            <i class="bi bi-plus-lg"></i>
-                        </button>
-                    </div>
-                    <small class="text-muted">点 <kbd>+</kbd> 新建标签（未列出也会自动创建）</small>
+                    <input type="text" class="form-control" id="tags" name="tags"
+                           placeholder="多个标签用逗号分隔"
+                           value="{{ tags_raw if tags_raw is defined else '' }}">
+                    <small class="text-muted">未列出的标签会自动创建</small>
                     {# 已存在标签提示(点击即可填入) #}
                     {% if all_tags and all_tags|length > 0 %}
                     <div class="mt-2">
@@ -410,75 +392,5 @@
             });
         });
     })();
-
-    // 阶段: 在编辑页面内直接新建分类/标签
-    function getCsrf() {
-        const m = document.querySelector('input[name="csrf_token"]');
-        return m ? m.value : '';
-    }
-    function showToast(msg, type) {
-        if (!type) type = 'success';
-        let box = document.getElementById('inlineToast');
-        if (!box) {
-            box = document.createElement('div');
-            box.id = 'inlineToast';
-            box.style.cssText = 'position:fixed;top:80px;right:24px;z-index:9999;min-width:240px;';
-            document.body.appendChild(box);
-        }
-        const id = 't' + Date.now();
-        box.insertAdjacentHTML('beforeend',
-            '<div id="' + id + '" class="alert alert-' + type + ' alert-dismissible fade show shadow" role="alert">'
-            + msg + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>');
-        setTimeout(function() { const el = document.getElementById(id); if (el) el.remove(); }, 2500);
-    }
-    const catBtn = document.getElementById('addCategoryBtn');
-    if (catBtn) {
-        catBtn.addEventListener('click', async function () {
-            const name = window.prompt('新建分类名称（2-50 字符）');
-            if (!name) return;
-            const trimmed = name.trim();
-            if (!trimmed || trimmed.length > 50) { showToast('名称需 1-50 字符', 'warning'); return; }
-            try {
-                const r = await fetch('/api/category', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-                    body: JSON.stringify({ name: trimmed })
-                });
-                const data = await r.json();
-                if (!r.ok) { showToast(data.error || '创建失败', 'danger'); return; }
-                const sel = document.getElementById('category_id');
-                const opt = document.createElement('option');
-                opt.value = data.id; opt.textContent = data.name; opt.selected = true;
-                sel.appendChild(opt);
-                showToast('分类 "' + data.name + '" 已创建', 'success');
-            } catch (e) { showToast('网络错误: ' + e, 'danger'); }
-        });
-    }
-    const tagBtn = document.getElementById('addTagBtn');
-    if (tagBtn) {
-        tagBtn.addEventListener('click', async function () {
-            const name = window.prompt('新建标签名称（1-30 字符）');
-            if (!name) return;
-            const trimmed = name.trim();
-            if (!trimmed || trimmed.length > 30) { showToast('名称需 1-30 字符', 'warning'); return; }
-            try {
-                const r = await fetch('/api/tag', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-                    body: JSON.stringify({ name: trimmed })
-                });
-                const data = await r.json();
-                if (!r.ok) { showToast(data.error || '创建失败', 'danger'); return; }
-                const input = document.getElementById('tags');
-                const cur = (input.value || '').trim();
-                const list = cur ? cur.split(/[,，\s]+/).filter(Boolean) : [];
-                if (list.indexOf(trimmed) === -1) {
-                    list.push(trimmed);
-                    input.value = list.join(', ');
-                }
-                showToast('标签 "' + trimmed + '" 已添加', 'success');
-            } catch (e) { showToast('网络错误: ' + e, 'danger'); }
-        });
-    }
 </script>
 {% endblock %}

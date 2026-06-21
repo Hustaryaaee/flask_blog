@@ -53,12 +53,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('category.admin') %}active{% endif %}"
-                           href="{{ url_for('category.admin_categories') }}">
-                            <i class="bi bi-tags me-1"></i>分类/标签
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'blog.archive' %}active{% endif %}"
                            href="{{ url_for('blog.archive') }}">
                             <i class="bi bi-archive me-1"></i>归档

@@ -19,6 +19,37 @@ blog_bp = Blueprint('blog', __name__)
 
 # ----------------------------- 工具函数 -----------------------------
 
+def _resolve_category_by_name(name: str):
+    """
+    根据分类名称查找或新建分类。
+    - 空字符串 / None → 返回 None（不分类）
+    - 已存在 → 返回 Category
+    - 不存在 → 自动创建并返回
+    """
+    if not name:
+        return None
+    name = name.strip()
+    if not name:
+        return None
+    if len(name) > 50:
+        name = name[:50]
+    cat = Category.query.filter_by(name=name).first()
+    if cat is not None:
+        return cat
+    # 创建
+    base_slug = re.sub(r'[^\w\s-]', '', name.lower(), flags=re.UNICODE)
+    base_slug = re.sub(r'[-\s]+', '-', base_slug).strip('-') or f'cat-{int(datetime.utcnow().timestamp())}'
+    slug = base_slug
+    n = 1
+    while Category.query.filter_by(slug=slug).first():
+        n += 1
+        slug = f'{base_slug}-{n}'
+    cat = Category(name=name, slug=slug)
+    db.session.add(cat)
+    db.session.flush()  # 不 commit，留给外层
+    return cat
+
+
 def _generate_slug(title: str) -> str:
     """根据标题生成 URL 友好的 slug"""
     # 仅保留字母数字、下划线、空格和连字符
@@ -333,7 +364,7 @@ def create():
     if request.method == 'POST':
         title = (request.form.get('title') or '').strip()
         content = (request.form.get('content') or '').strip()
-        category_id = request.form.get('category_id', type=int)
+        category_name = (request.form.get('category_name') or '').strip()
         tag_names = _parse_tag_names(request.form.get('tags', ''))
         is_markdown = request.form.get('is_markdown') in ('1', 'on', 'true')
 
@@ -348,13 +379,18 @@ def create():
         seo_keywords = (request.form.get('seo_keywords') or '').strip() or None
         published_at = _parse_published_at(request.form.get('published_at', ''))
 
-        # 基础校验
+        # 校验状态权限：仅 admin 可发布归档
+        if status == Post.STATUS_ARCHIVED and not current_user.is_admin():
+            flash('只有管理员可设置归档状态', 'error')
+            status = Post.STATUS_PUBLISHED
+
+        # 校验：必填
         if not title or not content:
             flash('标题和内容不能为空', 'error')
             return render_template(
                 'create.html',
                 title=title, content=content,
-                category_id=category_id, tags_raw=request.form.get('tags', ''),
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
                 status=status, cover_image=cover_image, excerpt=excerpt,
                 seo_title=seo_title, seo_description=seo_description,
@@ -368,7 +404,7 @@ def create():
             return render_template(
                 'create.html',
                 title=title, content=content,
-                category_id=category_id, tags_raw=request.form.get('tags', ''),
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
                 status=status, cover_image=cover_image, excerpt=excerpt,
                 seo_title=seo_title, seo_description=seo_description,
@@ -377,33 +413,18 @@ def create():
                 STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
-        # 校验分类
-        category = None
-        if category_id:
-            category = Category.query.get(category_id)
-            if category is None:
-                flash('所选分类不存在', 'error')
-                return render_template(
-                    'create.html',
-                    title=title, content=content,
-                    category_id=category_id, tags_raw=request.form.get('tags', ''),
-                    categories=categories, all_tags=all_tags,
-                    status=status, cover_image=cover_image, excerpt=excerpt,
-                    seo_title=seo_title, seo_description=seo_description,
-                    seo_keywords=seo_keywords,
-                    published_at=request.form.get('published_at', ''),
-                    STATUS_CHOICES=Post.STATUS_CHOICES,
-                )
-
-        # 校验状态权限：仅 admin 可发布归档，普通用户只能草稿/定时/发布
-        if status == Post.STATUS_ARCHIVED and not current_user.is_admin():
-            flash('只有管理员可设置归档状态', 'error')
+        # 解析分类（按名称 upsert）
+        try:
+            category = _resolve_category_by_name(category_name)
+        except Exception as exc:
+            db.session.rollback()
+            flash(f'分类创建失败: {exc}', 'error')
             return render_template(
                 'create.html',
                 title=title, content=content,
-                category_id=category_id, tags_raw=request.form.get('tags', ''),
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
-                status=Post.STATUS_PUBLISHED, cover_image=cover_image, excerpt=excerpt,
+                status=status, cover_image=cover_image, excerpt=excerpt,
                 seo_title=seo_title, seo_description=seo_description,
                 seo_keywords=seo_keywords,
                 published_at=request.form.get('published_at', ''),
@@ -427,7 +448,7 @@ def create():
             published_at=published_at,
             revision=1,
         )
-        # 处理标签
+        # 处理标签（按名称自动 upsert）
         post.tags = _get_or_create_tags(tag_names)
 
         try:
@@ -441,7 +462,7 @@ def create():
             return render_template(
                 'create.html',
                 title=title, content=content,
-                category_id=category_id, tags_raw=request.form.get('tags', ''),
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 categories=categories, all_tags=all_tags,
                 status=status, cover_image=cover_image, excerpt=excerpt,
                 seo_title=seo_title, seo_description=seo_description,
@@ -451,13 +472,13 @@ def create():
             )
 
     # GET 请求，渲染空表单 - 支持从 URL 参数预填 (来自 upload 等场景)
-    # URL参数需要解码
     prefill_title = unquote(request.args.get('title', '')).strip()
     prefill_content = unquote(request.args.get('content', ''))
     prefill_is_markdown = request.args.get('is_markdown', '') in ('1', 'true')
     prefill_cover = unquote(request.args.get('cover_image', '')).strip() or None
     prefill_excerpt = unquote(request.args.get('excerpt', '')).strip() or None
     prefill_tags = unquote(request.args.get('tags', '')).strip()
+    prefill_category = unquote(request.args.get('category', '')).strip()
 
     if prefill_content:
         flash('已从上传文件预填内容,请编辑后发布', 'info')
@@ -468,6 +489,7 @@ def create():
         content=prefill_content,
         is_markdown=prefill_is_markdown,
         tags_raw=prefill_tags,
+        category_name=prefill_category,
         categories=categories, all_tags=all_tags,
         status=Post.STATUS_PUBLISHED,
         cover_image=prefill_cover,
@@ -498,7 +520,7 @@ def edit(post_id):
     if request.method == 'POST':
         title = (request.form.get('title') or '').strip()
         content = (request.form.get('content') or '').strip()
-        category_id = request.form.get('category_id', type=int)
+        category_name = (request.form.get('category_name') or '').strip()
         tag_names = _parse_tag_names(request.form.get('tags', ''))
         is_markdown = request.form.get('is_markdown') in ('1', 'on', 'true')
 
@@ -521,6 +543,7 @@ def edit(post_id):
             return render_template(
                 'edit.html', post=post,
                 categories=categories, all_tags=all_tags,
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
@@ -529,20 +552,22 @@ def edit(post_id):
             return render_template(
                 'edit.html', post=post,
                 categories=categories, all_tags=all_tags,
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
-        # 校验分类
-        category = None
-        if category_id:
-            category = Category.query.get(category_id)
-            if category is None:
-                flash('所选分类不存在', 'error')
-                return render_template(
-                    'edit.html', post=post,
-                    categories=categories, all_tags=all_tags,
-                    STATUS_CHOICES=Post.STATUS_CHOICES,
-                )
+        # 解析分类（按名称 upsert；空字符串 → 不分类）
+        try:
+            category = _resolve_category_by_name(category_name)
+        except Exception as exc:
+            db.session.rollback()
+            flash(f'分类创建失败: {exc}', 'error')
+            return render_template(
+                'edit.html', post=post,
+                categories=categories, all_tags=all_tags,
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
+                STATUS_CHOICES=Post.STATUS_CHOICES,
+            )
 
         # 保存历史快照（编辑前）
         _save_history(post, note=(request.form.get('revision_note') or '').strip() or None)
@@ -562,7 +587,7 @@ def edit(post_id):
         post.seo_keywords = seo_keywords
         post.published_at = published_at
         post.revision = (post.revision or 1) + 1
-        # 重新绑定标签
+        # 重新绑定标签（按名称自动 upsert）
         post.tags = _get_or_create_tags(tag_names)
 
         try:
@@ -575,6 +600,7 @@ def edit(post_id):
             return render_template(
                 'edit.html', post=post,
                 categories=categories, all_tags=all_tags,
+                category_name=category_name, tags_raw=request.form.get('tags', ''),
                 STATUS_CHOICES=Post.STATUS_CHOICES,
             )
 
@@ -582,6 +608,8 @@ def edit(post_id):
     return render_template(
         'edit.html', post=post,
         categories=categories, all_tags=all_tags,
+        category_name=(post.category.name if post.category else ''),
+        tags_raw=(', '.join(t.name for t in post.tags) if post.tags else ''),
         STATUS_CHOICES=Post.STATUS_CHOICES,
     )
 
