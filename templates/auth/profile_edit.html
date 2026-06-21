@@ -17,17 +17,32 @@
             <div class="card-body p-4">
                 <h4 class="mb-3"><i class="bi bi-person-gear me-2"></i>编辑个人资料</h4>
 
-                <form method="POST" action="{{ url_for('auth.profile_edit') }}">
+                <form method="POST" action="{{ url_for('auth.profile_edit') }}" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                     <div class="mb-3 text-center">
                         <img src="{{ user.avatar() }}"
                              alt="{{ user.username }}"
+                             id="avatarPreview"
                              class="rounded-circle mb-2"
                              width="100" height="100"
                              style="object-fit: cover;">
                         <p class="text-muted small mb-0">当前头像预览</p>
                     </div>
+
+                    <div class="mb-3">
+                        <label for="avatar_file" class="form-label">上传头像</label>
+                        <input type="file"
+                               class="form-control"
+                               id="avatar_file"
+                               name="avatar_file"
+                               accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml">
+                        <div class="form-text">
+                            支持 png/jpg/jpeg/gif/webp/svg，≤2MB
+                        </div>
+                    </div>
+
+                    <div class="text-center text-muted small my-3">— 或 —</div>
 
                     <div class="mb-3">
                         <label for="avatar_url" class="form-label">头像 URL <span class="text-muted small">(可选)</span></label>
@@ -38,7 +53,7 @@
                                value="{{ user.avatar_url or '' }}"
                                placeholder="留空则使用首字母默认头像"
                                maxlength="255">
-                        <div class="form-text">支持 jpg/png/svg 链接, 推荐使用 Gravatar 或 DiceBear</div>
+                        <div class="form-text">也可粘贴图片链接（如 Gravatar、DiceBear）</div>
                     </div>
 
                     <div class="mb-3">
@@ -70,4 +85,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 选中文件后即时预览
+    const fileInput = document.getElementById('avatar_file');
+    const preview = document.getElementById('avatarPreview');
+    if (fileInput && preview) {
+        fileInput.addEventListener('change', function() {
+            const f = this.files[0];
+            if (!f) return;
+            if (f.size > 2 * 1024 * 1024) {
+                alert('文件过大（>2MB）'); this.value = ''; return;
+            }
+            const reader = new FileReader();
+            reader.onload = e => { preview.src = e.target.result; };
+            reader.readAsDataURL(f);
+        });
+    }
+</script>
 {% endblock %}

@@ -11,8 +11,15 @@ from flask import (
 )
 from flask_login import login_user, logout_user, login_required, current_user
 from urllib.parse import urlparse
+import os
+import uuid
 
 from models import db, User, Post
+from werkzeug.utils import secure_filename
+
+# 允许的头像格式
+ALLOWED_AVATAR_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+MAX_AVATAR_SIZE = 2 * 1024 * 1024  # 2MB
 
 # 用户认证蓝图
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -32,6 +39,41 @@ def _is_safe_next_url(target: str) -> bool:
     parsed = urlparse(target)
     # 仅接受相对路径（无 netloc / scheme）
     return not parsed.netloc and not parsed.scheme and target.startswith('/')
+
+
+def _save_avatar(file_storage, user_id: int):
+    """
+    保存头像文件到 uploads/avatars/。
+    返回 (ok: bool, info: str)
+        - 成功：ok=True, info=最终 URL（形如 /uploads/avatars/<uuid>.<ext>）
+        - 失败：ok=False, info=错误消息
+    """
+    if not file_storage or not file_storage.filename:
+        return False, '未选择文件'
+
+    # 取扩展名
+    orig = file_storage.filename.lower()
+    ext = orig.rsplit('.', 1)[-1] if '.' in orig else ''
+    if ext not in ALLOWED_AVATAR_EXT:
+        return False, f'仅支持 {", ".join(sorted(ALLOWED_AVATAR_EXT))} 格式'
+
+    # 读字节判大小
+    raw = file_storage.read()
+    if len(raw) > MAX_AVATAR_SIZE:
+        return False, f'文件过大（>{MAX_AVATAR_SIZE // 1024 // 1024}MB）'
+
+    # 存盘目录
+    folder = os.path.join(current_app.root_path, 'uploads', 'avatars')
+    os.makedirs(folder, exist_ok=True)
+
+    # 用 uuid 避免冲突 / 路径穿越
+    fname = f'user-{user_id}-{uuid.uuid4().hex[:8]}.{ext}'
+    fpath = os.path.join(folder, fname)
+
+    with open(fpath, 'wb') as f:
+        f.write(raw)
+
+    return True, f'/uploads/avatars/{fname}'
 
 
 def _validate_username(username: str) -> str | None:
@@ -262,11 +304,23 @@ def profile_edit():
             flash('个人简介不能超过 300 字符', 'error')
             return render_template('auth/profile_edit.html', user=current_user)
 
+        # 处理头像文件上传
+        avatar_file = request.files.get('avatar_file')
+        if avatar_file and avatar_file.filename:
+            ok, info = _save_avatar(avatar_file, current_user.id)
+            if not ok:
+                flash(info, 'error')
+                return render_template('auth/profile_edit.html', user=current_user)
+            # 上传成功 → 覆盖 URL 字段（保存为 /uploads/avatars/<id>.<ext> 静态路径）
+            avatar_url = info  # info 即为最终 URL
+            flash('头像已上传', 'success')
+
         current_user.bio = bio or None
         current_user.avatar_url = avatar_url or None
         try:
             db.session.commit()
-            flash('个人资料已更新', 'success')
+            if not avatar_file or not avatar_file.filename:
+                flash('个人资料已更新', 'success')
             return redirect(url_for('auth.profile'))
         except Exception as exc:  # noqa: BLE001
             db.session.rollback()
