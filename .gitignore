@@ -28,6 +28,16 @@ Thumbs.db
 
 # Flask
 instance/
+
+# 日志 / 进程输出
+logs/
+*.log
+logs/flask.out
+logs/flask.err
+
+# 测试脚本
+_*.py
+!_init_.py
 .coverage
 htmlcov/
 *.log
