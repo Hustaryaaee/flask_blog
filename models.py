@@ -623,3 +623,85 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f'<User id={self.id} username={self.username!r} role={self.role!r}>'
+
+
+# ---------------------------------------------------------------------------
+# AI 对话（阶段6新增）
+# ---------------------------------------------------------------------------
+class ChatSession(db.Model):
+    """
+    AI 对话会话。
+    关联到 user（必填）和可选 post（"问 AI 关于本文"模式）。
+    title 默认为首条用户消息前 30 字。
+    """
+    __tablename__ = 'chat_sessions'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    post_id = db.Column(
+        db.Integer,
+        db.ForeignKey('posts.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+        comment='关联文章（问 AI 关于本文）',
+    )
+    title = db.Column(db.String(120), nullable=False, default='新对话')
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, nullable=False,
+        default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    user = db.relationship('User', backref=db.backref('chat_sessions', lazy='dynamic'))
+    post = db.relationship('Post', backref=db.backref('chat_sessions', lazy='dynamic'))
+    messages = db.relationship(
+        'ChatMessage',
+        backref='session',
+        lazy='dynamic',
+        cascade='all, delete-orphan',
+        order_by='ChatMessage.created_at',
+    )
+
+    def __repr__(self):
+        return f'<ChatSession id={self.id} user_id={self.user_id} title={self.title!r}>'
+
+
+class ChatMessage(db.Model):
+    """
+    单条对话消息：role=user|assistant|system。
+    """
+    __tablename__ = 'chat_messages'
+
+    ROLE_USER = 'user'
+    ROLE_ASSISTANT = 'assistant'
+    ROLE_SYSTEM = 'system'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    session_id = db.Column(
+        db.Integer,
+        db.ForeignKey('chat_sessions.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    # 统计：tokens（可选）
+    prompt_tokens = db.Column(db.Integer, nullable=True)
+    completion_tokens = db.Column(db.Integer, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role': self.role,
+            'content': self.content,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def __repr__(self):
+        return f'<ChatMessage id={self.id} role={self.role}>'

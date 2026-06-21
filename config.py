@@ -42,6 +42,28 @@ class Config:
     ALLOWED_EXTENSIONS = {'md', 'txt'}
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
+    # ---- AI 对话（OpenAI / Anthropic 兼容协议）----
+    AI_ENABLED = os.environ.get('AI_ENABLED', 'false').lower() in ('1', 'true', 'yes')
+    AI_API_KEY = os.environ.get('AI_API_KEY', '').strip()
+    AI_BASE_URL = os.environ.get('AI_BASE_URL', 'https://api.openai.com/v1').strip()
+    AI_MODEL = os.environ.get('AI_MODEL', 'gpt-3.5-turbo').strip()
+    AI_SYSTEM_PROMPT = os.environ.get(
+        'AI_SYSTEM_PROMPT',
+        '你是一个友善的博客助手，擅长阅读文章、回答问题、总结要点、翻译与改写。',
+    ).strip()
+    AI_MAX_TOKENS = int(os.environ.get('AI_MAX_TOKENS', '800'))
+    AI_TEMPERATURE = float(os.environ.get('AI_TEMPERATURE', '0.7'))
+    AI_TIMEOUT = int(os.environ.get('AI_TIMEOUT', '30'))  # 秒
+    # 协议类型：openai（默认）/ anthropic
+    # 自动按 URL 推断：含 '/anthropic' 或 'anthropic.' → anthropic
+    _proto = os.environ.get('AI_PROTOCOL', '').strip().lower()
+    if _proto in ('openai', 'anthropic'):
+        AI_PROTOCOL = _proto
+    else:
+        AI_PROTOCOL = 'anthropic' if 'anthropic' in AI_BASE_URL.lower() else 'openai'
+    # 兜底：未配置 API key 时，给一个演示回复（"AI 演示模式"）
+    AI_DEMO_MODE = not AI_API_KEY
+
 
 class DevelopmentConfig(Config):
     """开发环境配置"""

@@ -135,6 +135,40 @@ def migrate():
         conn.commit()
         print("\n✅ 阶段3 评论表同步完成!")
 
+        # ---------- 阶段6 AI 对话表 ----------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                post_id INTEGER,
+                title VARCHAR(120) NOT NULL DEFAULT '新对话',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE SET NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_chat_sessions_user_id ON chat_sessions(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_chat_sessions_post_id ON chat_sessions(post_id)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id ON chat_messages(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_chat_messages_created_at ON chat_messages(created_at)")
+        print("✓ chat_sessions / chat_messages 表已创建")
+
+        conn.commit()
+        print("\n✅ 阶段6 AI 对话表同步完成!")
+
     except Exception as e:
         conn.rollback()
         print(f"❌ 迁移失败: {e}")

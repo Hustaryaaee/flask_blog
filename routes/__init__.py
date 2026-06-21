@@ -19,6 +19,7 @@ def register_blueprints(app: Flask):
     from routes.auth import auth_bp
     from routes.comment import comment_bp
     from routes.post_io import post_io_bp
+    from routes.ai import ai_bp
 
     # 注册蓝图
     app.register_blueprint(blog_bp)
@@ -27,5 +28,6 @@ def register_blueprints(app: Flask):
     app.register_blueprint(auth_bp)
     app.register_blueprint(comment_bp)
     app.register_blueprint(post_io_bp)
+    app.register_blueprint(ai_bp)
 
     # 后续如有其它模块（如 api_bp 等），在此继续注册

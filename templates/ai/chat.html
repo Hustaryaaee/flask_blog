@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}AI 对话{% endblock %}
+
+{% block extra_head %}
+<style>
+    .ai-layout { display: flex; gap: 1rem; min-height: calc(100vh - 200px); }
+    .ai-sidebar { width: 240px; flex-shrink: 0; }
+    .ai-main { flex: 1; display: flex; flex-direction: column; }
+    .ai-messages { flex: 1; overflow-y: auto; padding: 1rem; background: var(--blog-bg-soft); border-radius: var(--blog-radius-md); }
+    .ai-msg { margin-bottom: 1rem; display: flex; }
+    .ai-msg.user { justify-content: flex-end; }
+    .ai-msg .bubble {
+        max-width: 75%; padding: .6rem .9rem; border-radius: var(--blog-radius-md);
+        line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;
+    }
+    .ai-msg.user .bubble { background: var(--blog-accent); color: #fff; }
+    .ai-msg.assistant .bubble { background: #fff; border: 1px solid var(--blog-border-color); }
+    [data-bs-theme="dark"] .ai-msg.assistant .bubble { background: #1a1f26; border-color: #2d3748; }
+    .ai-msg .meta { font-size: .75rem; color: var(--blog-text-secondary); margin-top: .25rem; }
+    .ai-input { display: flex; gap: .5rem; margin-top: 1rem; }
+    .ai-input textarea { flex: 1; resize: vertical; min-height: 60px; }
+    .session-item {
+        display: block; padding: .5rem .75rem; margin-bottom: .25rem;
+        border-radius: var(--blog-radius-sm); text-decoration: none;
+        color: inherit; border: 1px solid transparent;
+    }
+    .session-item:hover { background: var(--blog-bg-soft); }
+    .session-item.active { background: var(--blog-bg-soft); border-color: var(--blog-accent); }
+    .session-item .title { display: block; font-weight: 500; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session-item .time { display: block; font-size: .75rem; color: var(--blog-text-secondary); }
+    .empty-hint { text-align: center; color: var(--blog-text-secondary); padding: 2rem; }
+    .typing { color: var(--blog-text-secondary); font-style: italic; }
+    .demo-badge { background: var(--bs-warning); color: #000; padding: .15rem .5rem; border-radius: 4px; font-size: .75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('blog.index') }}" class="text-decoration-none"><i class="bi bi-house-door me-1"></i>首页</a></li>
+                <li class="breadcrumb-item active">AI 对话</li>
+            </ol>
+        </nav>
+
+        <header class="page-header mb-3 pb-2 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h4 fw-bold mb-1">
+                    <i class="bi bi-robot me-2 text-primary"></i>AI 对话
+                </h1>
+                <p class="text-muted small mb-0">
+                    模型：<code>{{ cfg.AI_MODEL }}</code>
+                    {% if cfg.AI_DEMO_MODE or not cfg.AI_ENABLED %}
+                        <span class="demo-badge ms-2">演示模式</span>
+                    {% endif %}
+                </p>
+            </div>
+            <button class="btn btn-primary btn-sm" id="newSessionBtn">
+                <i class="bi bi-plus-lg me-1"></i>新对话
+            </button>
+        </header>
+
+        <div class="ai-layout">
+            {# 左侧：会话列表 #}
+            <aside class="ai-sidebar">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <strong class="small"><i class="bi bi-list-ul me-1"></i>会话历史</strong>
+                    </div>
+                    <div class="card-body p-2" style="max-height: 70vh; overflow-y: auto;">
+                        {% if sessions %}
+                            {% for s in sessions %}
+                            <a href="{{ url_for('ai.view_session', session_id=s.id) }}"
+                               class="session-item {% if active_session and active_session.id == s.id %}active{% endif %}">
+                                <span class="title">{{ s.title }}</span>
+                                <span class="time">{{ s.updated_at.strftime('%m-%d %H:%M') if s.updated_at }}</span>
+                                {% if s.post_id %}<small class="badge bg-info">文章</small>{% endif %}
+                            </a>
+                            {% endfor %}
+                        {% else %}
+                            <p class="empty-hint small mb-0">还没有对话</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </aside>
+
+            {# 右侧：消息流 #}
+            <main class="ai-main">
+                <div class="ai-messages" id="messagesContainer">
+                    {% if active_session %}
+                        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                            <div>
+                                <strong>{{ active_session.title }}</strong>
+                                {% if active_session.post %}
+                                    <span class="badge bg-info ms-2">关于《{{ active_session.post.title }}》</span>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="{{ url_for('ai.delete_session', session_id=active_session.id) }}"
+                                  onsubmit="return confirm('确定删除此对话？');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% for m in messages %}
+                            <div class="ai-msg {{ m.role }}">
+                                <div>
+                                    <div class="bubble">{{ m.content }}</div>
+                                    <div class="meta text-end">{{ m.created_at.strftime('%H:%M') if m.created_at }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-hint">
+                            <i class="bi bi-chat-square-dots display-4 d-block mb-3 opacity-50"></i>
+                            <p>选择左侧会话，或点击"新对话"开始</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if active_session %}
+                <form id="chatForm" class="ai-input">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" id="sessionId" value="{{ active_session.id }}">
+                    <textarea name="message" id="messageInput" class="form-control"
+                              placeholder="输入消息，回车发送，Shift+Enter 换行..." required></textarea>
+                    <button type="submit" class="btn btn-primary" id="sendBtn">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </main>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if active_session %}
+<script>
+    const messagesEl = document.getElementById('messagesContainer');
+    const form = document.getElementById('chatForm');
+    const input = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const sessionId = document.getElementById('sessionId').value;
+
+    function appendMessage(role, content) {
+        const wrap = document.createElement('div');
+        wrap.className = 'ai-msg ' + role;
+        const inner = document.createElement('div');
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = content;
+        const meta = document.createElement('div');
+        meta.className = 'meta text-end';
+        meta.textContent = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+        inner.appendChild(bubble);
+        inner.appendChild(meta);
+        wrap.appendChild(inner);
+        messagesEl.appendChild(wrap);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function appendTyping() {
+        const wrap = document.createElement('div');
+        wrap.className = 'ai-msg assistant';
+        wrap.id = 'typingIndicator';
+        const inner = document.createElement('div');
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble typing';
+        bubble.textContent = 'AI 正在思考...';
+        inner.appendChild(bubble);
+        wrap.appendChild(inner);
+        messagesEl.appendChild(wrap);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function removeTyping() {
+        const t = document.getElementById('typingIndicator');
+        if (t) t.remove();
+    }
+
+    // 初始滚动到底部
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+        appendMessage('user', text);
+        input.value = '';
+        sendBtn.disabled = true;
+        appendTyping();
+        try {
+            const r = await fetch('/ai/session/' + sessionId + '/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': form.querySelector('[name=csrf_token]').value },
+                body: JSON.stringify({ message: text }),
+            });
+            const data = await r.json();
+            removeTyping();
+            if (!r.ok) {
+                appendMessage('assistant', '[错误] ' + (data.error || r.statusText));
+            } else {
+                appendMessage('assistant', data.assistant_message.content);
+            }
+        } catch (err) {
+            removeTyping();
+            appendMessage('assistant', '[网络错误] ' + err);
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+</script>
+{% endif %}
+
+<script>
+    // 新对话按钮
+    const newBtn = document.getElementById('newSessionBtn');
+    if (newBtn) {
+        newBtn.addEventListener('click', async () => {
+            const r = await fetch('/ai/session/new', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+                body: JSON.stringify({}),
+            });
+            const data = await r.json();
+            if (r.ok && data.id) {
+                window.location.href = '/ai/session/' + data.id;
+            } else {
+                alert(data.error || '创建失败');
+            }
+        });
+    }
+</script>
+{% endblock %}

@@ -141,10 +141,20 @@
             <footer class="card-footer bg-white border-top">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
 
-                    {# 左侧:返回按钮 #}
-                    <a href="{{ url_for('blog.index') }}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-arrow-left me-1"></i>返回列表
-                    </a>
+                    {# 左侧:返回按钮 + 问 AI #}
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('blog.index') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-left me-1"></i>返回列表
+                        </a>
+                        {% if current_user.is_authenticated %}
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#askAIModal">
+                            <i class="bi bi-robot me-1"></i>问 AI 关于本文
+                        </button>
+                        {% endif %}
+                    </div>
 
                     {# 右侧:编辑/删除/导出按钮 (仅作者本人或管理员可见) #}
                     {% set can_edit = current_user.is_authenticated and (post.author_id == current_user.id or current_user.is_admin()) %}
@@ -258,4 +268,63 @@
         });
     })();
 </script>
+
+{# 问 AI 模态框 #}
+{% if current_user.is_authenticated %}
+<div class="modal fade" id="askAIModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-robot me-2 text-primary"></i>问 AI 关于本文
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">
+                    AI 会阅读《{{ post.title }}》正文后回答你的问题。
+                </p>
+                <textarea id="aiQuestion" class="form-control" rows="3"
+                          placeholder="例如：请总结这篇文章的要点 / 翻译成英文 / 这篇文章讲了什么？"
+                          maxlength="1000">请总结这篇文章的要点</textarea>
+                <div class="form-text">建议问题：总结、要点、翻译、改写、提问</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="askAISubmit">
+                    <i class="bi bi-send me-1"></i>开始对话
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function() {
+        const btn = document.getElementById('askAISubmit');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            const q = document.getElementById('aiQuestion').value.trim();
+            if (!q) { alert('请输入问题'); return; }
+            btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>提交中...';
+            try {
+                const r = await fetch('/ai/post/{{ post.id }}/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+                    body: JSON.stringify({ question: q }),
+                });
+                const data = await r.json();
+                if (r.ok && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert(data.error || '请求失败');
+                    btn.disabled = false; btn.innerHTML = '<i class="bi bi-send me-1"></i>开始对话';
+                }
+            } catch (e) {
+                alert('网络错误: ' + e);
+                btn.disabled = false; btn.innerHTML = '<i class="bi bi-send me-1"></i>开始对话';
+            }
+        });
+    })();
+</script>
+{% endif %}
 {% endblock %}
